@@ -28,7 +28,9 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
   const areaSel = AREAS.includes(f.area) ? f.area : f.area || other ? 'other' : ''
   const input = useMemo(() => ({ ...f, area: areaSel === 'other' ? other : f.area }), [f, other, areaSel])
   const err = (k: keyof BookingInput) => errors.find(e => e.field === k)?.message
-  const liveConflict = useMemo(() => validateBooking(input, bookings, new Date(), editing?.id).find(e => e.message.startsWith('Driver')), [input, bookings, editing])
+  // Warn about a clash as soon as date/time/duration are chosen, even before the rest is filled in.
+  const liveConflict = useMemo(() => validateBooking({ ...input, area: 'x', location: 'x', purpose: 'x', pickup_location: 'x' }, bookings, new Date(), editing?.id)
+    .find(e => e.message.startsWith('Driver')), [input, bookings, editing])
 
   async function submit() {
     const e = validateBooking(input, bookings, new Date(), editing?.id)
