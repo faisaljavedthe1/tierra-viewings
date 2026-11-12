@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/dm-sans';
+@import '@fontsource/dm-mono/500.css';
+@import 'leaflet/dist/leaflet.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'DM Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-surface: var(--surface);
+  --color-line: var(--border);
+  --color-line2: var(--border2);
+  --color-fg: var(--fg);
+  --color-fg2: var(--fg2);
+  --color-fg3: var(--fg3);
+  --color-gold: var(--accent);
+  --color-gold2: var(--accent2);
+  --color-gold-soft: var(--accd);
+  --color-shell: var(--sb);
+  --color-shell2: var(--sb2);
+}
+
+:root {
+  --bg: #F2F3F7; --bg2: #E9EAF0; --surface: rgba(255, 255, 255, .92);
+  --border: rgba(14, 17, 40, .07); --border2: rgba(14, 17, 40, .14);
+  --fg: #0C0F22; --fg2: #52586E; --fg3: #8A90A6;
+  --accent: #C07B1E; --accent2: #E09B38; --accd: rgba(192, 123, 30, .10);
+  --sb: #0A0C18; --sb2: #111424;
+  color-scheme: light;
+}
+.dark {
+  --bg: #07080F; --bg2: #0E1020; --surface: rgba(20, 23, 42, .88);
+  --border: rgba(255, 255, 255, .07); --border2: rgba(255, 255, 255, .14);
+  --fg: #EDEFF8; --fg2: #A3A9C2; --fg3: #6E7490;
+  --accent: #E09B38; --accent2: #F2B65A; --accd: rgba(224, 155, 56, .13);
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.05); backdrop-filter: blur(12px); }
+.gold-grad { background: linear-gradient(135deg, #C07B1E 0%, #E9A93A 100%); }
+.input { width: 100%; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface); padding: .6rem .75rem; font-size: 15px; color: var(--fg); outline: none; transition: border-color .15s, box-shadow .15s; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accd); }
+.input[aria-invalid='true'] { border-color: #DC2626; }
+.page-in { animation: pgIn .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes pgIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.orb { position: absolute; border-radius: 9999px; filter: blur(60px); opacity: .45; animation: orb 14s ease-in-out infinite alternate; }
+@keyframes orb { from { transform: translate(0,0) scale(1) } to { transform: translate(40px,-30px) scale(1.15) } }
+@media (prefers-reduced-motion: reduce) { .page-in, .orb { animation: none } }
+.safe-b { padding-bottom: env(safe-area-inset-bottom); }
+.safe-t { padding-top: env(safe-area-inset-top); }
