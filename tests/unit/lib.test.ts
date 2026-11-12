@@ -53,6 +53,8 @@ describe('client-side validation mirrors the database', () => {
   })
   it('flags Sunday, hours, notice and overlap', () => {
     expect(validateBooking({ ...ok, date: '2026-11-22' }, [], now)[0].message).toMatch(/Sunday/)
+    expect(validateBooking({ ...ok, date: '2027-06-01' }, [], now)[0].message).toMatch(/6 months/)
+    expect(validateBooking({ ...ok, date: '2027-05-15' }, [], now)).toEqual([])
     expect(validateBooking({ ...ok, start_time: '18:00' }, [], now)[0].message).toMatch(/6:00 PM/)
     expect(validateBooking({ ...ok, date: '2026-11-16', start_time: '09:30' }, [], new Date('2026-11-16T05:10:00Z'))[0].message).toMatch(/30 minutes/)
     expect(validateBooking({ ...ok, date: '2026-11-16', start_time: '09:30' }, [], now)).toEqual([]) // exactly 30 min is fine

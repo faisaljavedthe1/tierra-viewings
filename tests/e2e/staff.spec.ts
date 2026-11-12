@@ -71,6 +71,7 @@ test('agent: books from a free gap, fixes a mistake, edits, then cancels', async
   await card.getByRole('button', { name: 'Edit' }).click()
   await page.getByRole('dialog', { name: 'Edit booking' }).getByLabel(/Purpose/).fill('2BR viewing — client bringing wife')
   await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByRole('dialog', { name: 'Edit booking' })).toBeHidden()
   await expect(card.getByText('client bringing wife')).toBeVisible()
 
   await card.getByRole('button', { name: 'Cancel' }).click()
@@ -121,7 +122,7 @@ test('manager: confirms, reschedules, checks the report and exports CSV', async 
   const dlg = page.getByRole('dialog', { name: 'Reschedule' })
   await dlg.getByLabel('New start').fill('15:30') // clashes with Bahaa 3–4 PM
   await dlg.getByRole('button', { name: 'Move booking' }).click()
-  await expect(page.getByText(/Driver is already booked 03:00 PM/i)).toBeVisible()
+  await expect(page.getByText(/Driver is already booked 3:00 PM – 4:00 PM/)).toBeVisible()
   await dlg.getByLabel('New date').fill('2030-01-09')
   await dlg.getByRole('button', { name: 'Move booking' }).click()
   await expect(dlg).toBeHidden()

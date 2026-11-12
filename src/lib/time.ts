@@ -19,6 +19,7 @@ export const fmtMins = (m: number) => fmtTime(m2t(m))
 const parse = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)) }
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
 export const addDays = (d: string, n: number) => { const x = parse(d); x.setUTCDate(x.getUTCDate() + n); return ymd(x) }
+export const addMonths = (d: string, n: number) => { const [y, m, dd] = d.split('-').map(Number); return ymd(new Date(Date.UTC(y, m - 1 + n, dd))) }
 export const dow = (d: string) => parse(d).getUTCDay()
 export const isSunday = (d: string) => dow(d) === 0
 export const monday = (d: string) => addDays(d, -((dow(d) + 6) % 7))
@@ -67,6 +68,7 @@ export function validateBooking(i: BookingInput, sameDay: Booking[], now = new D
 
   const today = dubaiToday(now), start = t2m(i.start_time), end = start + h * 60
   if (i.date < today) e.push({ field: 'date', message: 'Cannot book a date in the past' })
+  else if (i.date > addMonths(today, 6)) e.push({ field: 'date', message: 'Bookings can be made up to 6 months ahead' })
   else if (isSunday(i.date)) e.push({ field: 'date', message: 'Sunday is a day off — no bookings' })
   else if (start < WS) e.push({ field: 'start_time', message: 'Viewings start at 9:30 AM — choose a later time' })
   else if (start >= WE) e.push({ field: 'start_time', message: 'No bookings starting at or after 6:00 PM' })

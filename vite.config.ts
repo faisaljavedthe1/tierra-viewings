@@ -28,5 +28,6 @@ export default defineConfig({
       workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'] },
     }),
   ],
+  build: { rollupOptions: { output: { manualChunks: { react: ['react', 'react-dom', 'react-router-dom'], supabase: ['@supabase/supabase-js'] } } } },
   test: { environment: 'node', testTimeout: 30_000, hookTimeout: 60_000, include: ['tests/unit/**/*.test.ts', 'tests/db/**/*.test.ts'] },
 })
