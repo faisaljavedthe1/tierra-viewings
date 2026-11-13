@@ -1,18 +1,25 @@
 # Uptime check every 30 minutes. If the app or the database is down the run fails,
 # and GitHub emails the repository owner. Free, no extra account.
+# The Supabase URL and publishable key are public values (they ship inside the website).
 name: Health
 on:
   schedule: [{ cron: '*/30 * * * *' }]
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  SUPABASE_URL: https://mfmsokgjeszhulrufuww.supabase.co
+  SUPABASE_KEY: sb_publishable_Wq2CmSbhVTnF51mWBWUF6w_i-lU07vy
+  SITE_URL: ${{ vars.SITE_URL }}
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Database and login service
-        run: curl -fsS --retry 3 --retry-delay 20 -H "apikey: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}" "${{ vars.SUPABASE_URL }}/auth/v1/health"
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 -H "apikey: $SUPABASE_KEY" "$SUPABASE_URL/auth/v1/health"
       - name: Website
-        if: vars.SITE_URL != ''
-        run: curl -fsS --retry 3 --retry-delay 20 -o /dev/null "${{ vars.SITE_URL }}"
+        run: |
+          if [ -z "$SITE_URL" ]; then echo "SITE_URL not set yet — skipping"; exit 0; fi
+          curl -fsS --retry 3 --retry-delay 20 -o /dev/null "$SITE_URL"
