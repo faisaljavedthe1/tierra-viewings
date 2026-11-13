@@ -243,3 +243,32 @@ test('admin: adds many staff at once; a new person must choose a password, then 
   expect(o).toEqual({ role: 'manager', job_title: 'Accountant' })
   await p2.close()
 })
+
+test('phone notifications: nudge, turn on, test, turn off', async ({ page }) => {
+  await fake.db.pg.query(`insert into public.app_secrets (name, value) values ('vapid_public', 'BAbc') on conflict (name) do update set value = excluded.value`)
+  // Simulated push service (real ones are Google / Apple / Mozilla servers).
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>
+    const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-device', toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, unsubscribe: async () => { w.__sub = null; return true } }
+    const reg = { pushManager: { getSubscription: async () => w.__sub ?? null, subscribe: async () => (w.__sub = sub) } }
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve(reg), register: async () => reg, getRegistration: async () => reg, getRegistrations: async () => [reg], addEventListener() {}, removeEventListener() {}, controller: null } })
+    if (!('PushManager' in window)) w.PushManager = function () {}
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => (w.__perm as string) || 'default' })
+    Notification.requestPermission = async () => (w.__perm = 'granted') as NotificationPermission
+  })
+  await signIn(page, 'shazia')
+  await expect(page.getByText('Get alerts on your phone')).toBeVisible()
+  await page.getByRole('button', { name: 'Later' }).click()
+  await expect(page.getByText('Get alerts on your phone')).toBeHidden()
+
+  await page.getByRole('link', { name: /Account/ }).click()
+  await page.getByRole('button', { name: 'Turn on' }).click()
+  await expect(page.getByText('✓ On for this device')).toBeVisible()
+  const subs = () => fake.db.pg.query<{ user_id: string; device: string }>('select user_id, device from public.push_subscriptions').then(r => r.rows)
+  expect(await subs()).toEqual([{ user_id: STAFF.shazia.id, device: expect.any(String) }])
+  await page.getByRole('button', { name: 'Send a test' }).click()
+  await expect(page.getByText(/Test sent/)).toBeVisible()
+  await page.getByRole('button', { name: 'Turn off' }).click()
+  await expect(page.getByRole('button', { name: 'Turn on' })).toBeVisible()
+  expect(await subs()).toEqual([])
+})

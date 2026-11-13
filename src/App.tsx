@@ -5,6 +5,7 @@ import { configured } from './lib/supabase'
 import { reportError } from './lib/errors'
 import { isManagerRole, type Role } from './lib/types'
 import { ToastProvider } from './components/ui'
+import { PushNudge } from './components/PushCard'
 import { Login, NotActive } from './pages/Login'
 import { Calendar } from './pages/Calendar'
 import { Mine } from './pages/Mine'
@@ -52,6 +53,7 @@ function Shell() {
       </nav>
       <main className="safe-t mx-auto w-full max-w-3xl flex-1 px-4 pt-5 pb-28 md:pb-10">
         {!online && <div role="status" className="mb-3 rounded-xl bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-700 dark:text-amber-400">You're offline — changes can't be saved until you reconnect.</div>}
+        <PushNudge />
         <Suspense fallback={<p className="text-fg2">Loading…</p>}>
           <Routes>
             {tabs.map(t => <Route key={t.to} path={t.to} element={t.el} />)}

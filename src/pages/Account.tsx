@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { useData } from '../lib/data'
 import { api } from '../lib/api'
-import { askNotifications, canNotify } from '../lib/notify'
 import { supabase, friendly } from '../lib/supabase'
 import { getTheme, setTheme, type Theme } from '../lib/theme'
 import { Button, Chips, Field, useToast } from '../components/ui'
+import { PushCard } from '../components/PushCard'
 
 export function Account() {
   const { me, signOut } = useData()
   const toast = useToast()
   const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [busy, setBusy] = useState(false)
   const [theme, setT] = useState<Theme>(getTheme())
-  const [perm, setPerm] = useState(canNotify() ? Notification.permission : 'denied')
   return (
     <div className="page-in max-w-lg space-y-4">
       <h1 className="text-2xl font-extrabold">Account</h1>
@@ -23,13 +22,7 @@ export function Account() {
         <h2 className="font-bold">Appearance</h2>
         <Chips value={theme} onChange={v => { setT(v); setTheme(v) }} options={[{ v: 'system', l: 'Auto' }, { v: 'light', l: 'Light' }, { v: 'dark', l: 'Dark' }]} />
       </div>
-      <div className="card space-y-2 p-4">
-        <h2 className="font-bold">Notifications</h2>
-        <p className="text-sm text-fg2">Alerts for confirmations, cancellations and reminders before your viewings.</p>
-        {perm === 'granted' ? <p className="text-sm font-semibold text-emerald-600">✓ On</p>
-          : perm === 'denied' ? <p className="text-sm text-fg2">Blocked — turn them on in your browser's site settings.</p>
-          : <Button size="sm" onClick={async () => { await askNotifications(); setPerm(Notification.permission) }}>Turn on</Button>}
-      </div>
+      <PushCard />
       <form className="card space-y-3 p-4" onSubmit={async e => {
         e.preventDefault()
         if (pw.length < 8) return toast('Use at least 8 characters', 'err')

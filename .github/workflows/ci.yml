@@ -16,6 +16,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx oxlint src
+      - name: Type-check server functions (Deno)
+        run: npx -y deno@2 check supabase/functions/push-send/index.ts supabase/functions/admin-staff/index.ts
       - name: Unit + database tests (RLS, booking rules, import)
         run: npx vitest run
       - run: npx playwright install --with-deps chromium

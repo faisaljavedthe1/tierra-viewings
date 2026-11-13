@@ -3,8 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { api } from './api'
 import type { Booking, Profile } from './types'
-import { messageFor, scheduleReminders, show } from './notify'
-import { dubaiNowMins, dubaiToday } from './time'
+import { messageFor } from './notify'
 import { useToast } from '../components/ui'
 
 interface Data {
@@ -74,7 +73,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const before = bRef.current.find(x => x.id === after.id)
         upsert(after)
         const m = meRef.current && messageFor(meRef.current, before, after, nameOf)
-        if (m) { toast(m, 'ok'); show('Tierra Viewings', m) }
+        if (m) toast(m, 'ok') // in-app; phones get Web Push from the server
       })
       .subscribe()
     const back = () => { if (document.visibilityState === 'visible') void refresh() }
@@ -85,7 +84,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(poll); void supabase.removeChannel(ch); document.removeEventListener('visibilitychange', back); removeEventListener('online', on); removeEventListener('offline', off) }
   }, [me?.active, refresh, upsert, nameOf, toast])
 
-  useEffect(() => { if (me?.active) scheduleReminders(me, bookings, dubaiToday(), dubaiNowMins()) }, [me, bookings])
 
   const signOut = useCallback(async () => {
     if (meRef.current?.role === 'driver') await api.clearLocation().catch(() => {})

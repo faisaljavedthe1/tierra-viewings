@@ -23,7 +23,7 @@ jobs:
         run: |
           test -n "$DB" || { echo "SUPABASE_DB_URL secret is missing"; exit 1; }
           f="tierra-viewings-$(date -u +%Y-%m-%d).sql.gz"
-          /usr/lib/postgresql/17/bin/pg_dump "$DB" --schema=public --no-owner --no-privileges | gzip -9 > "$f"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB" --schema=public --exclude-table=public.app_secrets --no-owner --no-privileges | gzip -9 > "$f"
           rows=$(zcat "$f" | grep -c '^COPY public.bookings' || true)
           test "$rows" -ge 1 || { echo "Backup looks empty"; exit 1; }
           ls -lh "$f"

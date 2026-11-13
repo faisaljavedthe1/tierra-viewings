@@ -30,13 +30,17 @@ with a valid login, an agent, a manager and the driver. Findings were listed bef
 | 11 | Address suggestions are sent to OpenStreetMap | Accepted — typed addresses only, no names |
 | 12 | Agents saw colleagues' client details | Fixed (0005) — owner decision 13 Nov |
 | 13 | Bookings could run past 6 PM | Fixed (0005) — owner decision 13 Nov |
-| 14 | Reminders only while the app is open | Open — web push can be added (free) |
+| 14 | Reminders only while the app is open | Fixed — Web Push (0011–0013), reminders 60 and 15 min before trips |
 | 15 | Old 3-device limit removed | Accepted — deactivation blocks all devices at once |
 | 16 | Realtime not covered by automated tests | Check on real devices after deploy |
 | 17 | 530 KB main bundle | Fixed — split into react / supabase / app chunks |
 | 18 | Free project pauses after 7 idle days | Mitigated — nightly backup counts as activity |
 | 19 | First-login password change was enforced only by the app screen | Fixed (0009) — server refuses data until changed |
 | 20 | Temporary passwords sent over WhatsApp | Accepted — only valid until first sign-in, change is forced |
+| 21 | Backups would include push signing keys | Fixed (0012) — secrets table excluded from backups |
+| 22 | Notification tap could open an outside site | Fixed — in-app paths only |
+| 23 | Reminder log grows forever | Fixed (0012) — 30-day clean-up |
+| 24 | push-send is reachable from the internet | Accepted — 256-bit secret generated in the DB, constant-time check; verified a wrong secret gets 401 |
 
 Supabase's security advisor still lists "signed-in users can execute SECURITY DEFINER functions":
 intentional — these functions are the only way to change data and each checks the caller's role.
