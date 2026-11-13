@@ -4,7 +4,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2.119.0'
 
 const URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map(s => s.trim()).filter(Boolean)
+// The live site is always allowed; extra origins (a custom domain later) can be added via ALLOWED_ORIGINS.
+const SITE = 'https://tierra-viewings.faisaljavedthe1.workers.dev'
+const ORIGINS = [SITE, ...(Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map(s => s.trim()).filter(Boolean)]
 const ROLES = ['agent', 'manager', 'driver', 'admin']
 
 function cors(origin: string | null) {

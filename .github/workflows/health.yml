@@ -10,7 +10,7 @@ permissions:
 env:
   SUPABASE_URL: https://mfmsokgjeszhulrufuww.supabase.co
   SUPABASE_KEY: sb_publishable_Wq2CmSbhVTnF51mWBWUF6w_i-lU07vy
-  SITE_URL: ${{ vars.SITE_URL }}
+  SITE_URL: https://tierra-viewings.faisaljavedthe1.workers.dev
 jobs:
   check:
     runs-on: ubuntu-24.04
