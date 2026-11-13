@@ -5,6 +5,7 @@ import { AREAS, DRIVER_COORDINATORS, DURATIONS } from '../lib/constants'
 import { dubaiToday, validateBooking, type FieldError } from '../lib/time'
 import type { Booking, BookingInput } from '../lib/types'
 import { newBookingMessage, waLink } from '../lib/whatsapp'
+import { curatedHits, mergeHits, parsePlace, photonLabel } from '../lib/places'
 import { AlertTriangle, Car, MapPin } from 'lucide-react'
 import { Button, Field, Modal, useToast } from './ui'
 
@@ -120,32 +121,56 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
   )
 }
 
-/** Free-text address with OpenStreetMap suggestions (UAE only, debounced, no key needed). */
+/**
+ * Free-text address with suggestions from our Dubai list and two free OpenStreetMap search engines (UAE only,
+ * debounced, no keys). A pasted Google Maps link or coordinates is accepted as-is and opens in Maps for the driver.
+ */
+const UAE_BOX = '51.5,22.6,56.4,26.1'
+async function osmHits(q: string, signal: AbortSignal): Promise<string[][]> {
+  const get = async <T,>(url: string) => { const r = await fetch(url, { signal, headers: { Accept: 'application/json' } }); if (!r.ok) throw new Error(String(r.status)); return (await r.json()) as T }
+  const [photon, nomi] = await Promise.allSettled([
+    get<{ features: { properties: Parameters<typeof photonLabel>[0] & { countrycode?: string } }[] }>(
+      `https://photon.komoot.io/api/?limit=6&lat=25.2&lon=55.27&bbox=${UAE_BOX}&q=${encodeURIComponent(q)}`),
+    get<{ display_name: string }[]>(`https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ae&q=${encodeURIComponent(q)}`),
+  ])
+  return [
+    photon.status === 'fulfilled' ? photon.value.features.filter(f => !f.properties.countrycode || f.properties.countrycode === 'AE').map(f => photonLabel(f.properties)).filter(Boolean) : [],
+    nomi.status === 'fulfilled' ? nomi.value.map(x => x.display_name.split(', ').slice(0, 4).join(', ')) : [],
+  ]
+}
+
 function PlaceInput({ value, onChange, placeholder, invalid }: { value: string; onChange: (v: string) => void; placeholder: string; invalid: boolean }) {
   const [hits, setHits] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const t = useRef<number>(0)
-  useEffect(() => () => clearTimeout(t.current), [])
+  const ctl = useRef<AbortController | null>(null)
+  useEffect(() => () => { clearTimeout(t.current); ctl.current?.abort() }, [])
+  const pasted = parsePlace(value).kind !== 'text'
   function type(v: string) {
-    onChange(v); clearTimeout(t.current)
-    if (v.trim().length < 3) { setHits([]); return }
+    onChange(v); clearTimeout(t.current); ctl.current?.abort()
+    if (v.trim().length < 3 || parsePlace(v).kind !== 'text') { setHits([]); return }
+    const mine = curatedHits(v)
+    setHits(mine); setOpen(mine.length > 0)
     t.current = window.setTimeout(async () => {
+      const c = new AbortController(); ctl.current = c
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ae&q=${encodeURIComponent(v)}`, { headers: { Accept: 'application/json' } })
-        const j = (await r.json()) as { display_name: string }[]
-        setHits(j.map(x => x.display_name.split(', ').slice(0, 4).join(', '))); setOpen(true)
-      } catch { setHits([]) }
-    }, 450)
+        const more = await osmHits(v.trim(), c.signal)
+        if (!c.signal.aborted) { const all = mergeHits([mine, ...more]); setHits(all); setOpen(all.length > 0) }
+      } catch { /* keep our own suggestions */ }
+    }, 400)
   }
   return (
-    <div className="relative">
+    <div>
+     <div className="relative">
       <input className="input" maxLength={500} value={value} placeholder={placeholder} aria-invalid={invalid} autoComplete="off"
         onChange={e => type(e.target.value)} onBlur={() => setTimeout(() => setOpen(false), 150)} onFocus={() => hits.length && setOpen(true)} />
       {open && hits.length > 0 && (
-        <ul className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-xl border border-line2 bg-surface shadow-xl">
+        <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-xl border border-line2 bg-surface shadow-xl">
           {hits.map(h => <li key={h}><button type="button" className="w-full px-3 py-2.5 text-left text-sm hover:bg-paper2" onMouseDown={() => { onChange(h); setOpen(false) }}>{h}</button></li>)}
         </ul>
       )}
+     </div>
+      <p className="mt-1 text-xs text-ink3">{pasted ? '✓ Map pin — the driver can open it in Google Maps.' : "Can't find it? Type the full address, or paste a Google Maps link."}</p>
     </div>
   )
 }

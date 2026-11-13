@@ -61,3 +61,19 @@ it('the backup login can read everything but change nothing', async () => {
     await expect(db.pg.query(`update public.profiles set role='admin'`)).rejects.toThrow(/permission denied|read-only/)
   } finally { await db.pg.exec('reset role') }
 })
+
+it('pen-test 13 Nov #2: the database refuses driver location outside working hours (privacy promise)', async () => {
+  await db.setNow('2026-11-16 18:31')                                       // Monday after 6:30 PM
+  await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 5)')
+  expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(0)
+  await db.setNow('2026-11-22 12:00')                                       // Sunday
+  await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 5)')
+  expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(0)
+  await db.setNow('2026-11-16 08:59')
+  await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 5)')
+  expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(0)
+  await db.setNow('2026-11-16 09:00')                                       // working hours: accepted
+  await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 5)')
+  expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(1)
+  await expect(db.as(U.agent, 'select public.update_driver_location(25.1, 55.2, 5)')).rejects.toThrow(/driver only/)
+})

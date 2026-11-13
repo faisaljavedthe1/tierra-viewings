@@ -26,11 +26,26 @@ export async function enablePush() {
   if (error) throw new Error(friendly(error))
   if (!key) throw new Error('Notifications are not set up on the server yet.')
   const reg = await registration()
-  const sub = (await reg.pushManager.getSubscription()) ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64u(key as string) })
+  const sub = await subscribe(reg, fromB64u(key as string))
   const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
   const device = `${/Android/.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : 'Computer'}`
   const { error: e2 } = await supabase.rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_device: device })
   if (e2) throw new Error(friendly(e2))
+}
+
+/** iPhones sometimes refuse the first subscribe after a sign-out; clear any stale subscription and try once more. */
+async function subscribe(reg: ServiceWorkerRegistration, key: Uint8Array) {
+  const opts = { userVisibleOnly: true, applicationServerKey: key as BufferSource }
+  const existing = await reg.pushManager.getSubscription().catch(() => null)
+  if (existing) return existing
+  try { return await reg.pushManager.subscribe(opts) } catch (first) {
+    await (await reg.pushManager.getSubscription().catch(() => null))?.unsubscribe().catch(() => {})
+    await new Promise(r => setTimeout(r, 800))
+    try { return await reg.pushManager.subscribe(opts) } catch (second) {
+      const name = (second as Error).name || (first as Error).name
+      throw Object.assign(new Error('Your phone could not switch on notifications. Close the app fully (swipe it away), open it again and tap the button.'), { detail: `${name}: ${(second as Error).message}` })
+    }
+  }
 }
 
 export async function disablePush() {

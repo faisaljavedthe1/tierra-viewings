@@ -25,10 +25,11 @@ export const isSunday = (d: string) => dow(d) === 0
 export const monday = (d: string) => addDays(d, -((dow(d) + 6) % 7))
 export const weekDays = (mon: string) => [0, 1, 2, 3, 4, 5].map(i => addDays(mon, i))
 
-const dubaiFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+// Dubai is UTC+4 all year (no daylight saving), so plain arithmetic is exact and behaves the same on every
+// phone — unlike Intl date formatting, which varies between browsers (12/24-hour, "24:00", other digits).
 function dubaiParts(now: Date) {
-  const p = Object.fromEntries(dubaiFmt.formatToParts(now).map(x => [x.type, x.value]))
-  return { date: `${p.year}-${p.month}-${p.day}`, mins: Number(p.hour) * 60 + Number(p.minute) }
+  const d = new Date(now.getTime() + 4 * 3600_000)
+  return { date: d.toISOString().slice(0, 10), mins: d.getUTCHours() * 60 + d.getUTCMinutes() }
 }
 export const dubaiToday = (now = new Date()) => dubaiParts(now).date
 export const dubaiNowMins = (now = new Date()) => dubaiParts(now).mins

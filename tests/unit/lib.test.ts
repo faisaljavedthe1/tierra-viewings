@@ -1,6 +1,6 @@
 // Unit tests for the app's pure logic. Written before src/lib (TDD). Run: npm run test:unit
 import { describe, expect, it } from 'vitest'
-import { addDays, dubaiToday, fmtTime, gaps, isSunday, m2t, monday, t2m, validateBooking, weekDays, WS, WE } from '../../src/lib/time'
+import { addDays, dubaiNowMins, dubaiToday, fmtTime, gaps, isSunday, m2t, monday, t2m, validateBooking, weekDays, WS, WE } from '../../src/lib/time'
 import { toCsv } from '../../src/lib/csv'
 import { waLink, newBookingMessage, confirmedMessage } from '../../src/lib/whatsapp'
 import { driverReport } from '../../src/lib/report'
@@ -89,5 +89,19 @@ describe('driver report', () => {
       b({ status: 'pending', date: '2026-11-21' })], '2026-11-23', 3)
     expect(r.map(x => x.date)).toEqual(['2026-11-21', '2026-11-23']) // 22nd is Sunday
     expect(r[0]).toMatchObject({ trips: 2, bookedMins: 240, idleMins: 270 })
+  })
+})
+
+describe('Dubai time works on every phone (iPhone bug, 13 Nov)', () => {
+  it('reads 4:22 PM as 16:22 even when the phone formats hours as 12-hour', () => {
+    const RealDTF = Intl.DateTimeFormat
+    // Phones format time differently (12/24-hour, "24:00", other digits) — Dubai time must not depend on it.
+    Intl.DateTimeFormat = function () { throw new Error('Intl not used') } as unknown as typeof Intl.DateTimeFormat
+    try {
+      const now = new Date('2026-11-13T12:22:00Z') // Fri 16:22 Dubai
+      expect(dubaiNowMins(now)).toBe(16 * 60 + 22)
+      expect(dubaiToday(now)).toBe('2026-11-13')
+      expect(dubaiToday(new Date('2026-11-13T20:30:00Z'))).toBe('2026-11-14') // 00:30 next day in Dubai
+    } finally { Intl.DateTimeFormat = RealDTF }
   })
 })

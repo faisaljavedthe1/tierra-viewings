@@ -4,7 +4,7 @@ import { useData } from '../lib/data'
 import { useDriverLocation } from '../lib/driverLocation'
 import { addDays, dubaiToday, fmtDate, isSunday, WE, WS } from '../lib/time'
 import { BookingCard } from '../components/BookingCard'
-import { Empty, PageHead, Stat } from '../components/ui'
+import { Button, Empty, PageHead, Stat, useToast } from '../components/ui'
 
 export function Driver() {
   const { bookings } = useData()
@@ -33,7 +33,10 @@ export function Driver() {
 
 /** Location is shared automatically during working hours — nothing for the driver to switch on or off. */
 function LocationStatus() {
-  const { active, lastSent, error, screenAwake } = useDriverLocation()
+  const { active, lastSent, error, screenAwake, sendNow } = useDriverLocation()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const now = () => { setBusy(true); sendNow().then(() => toast('Location sent to the managers', 'ok'), e => toast((e as Error).message, 'err')).finally(() => setBusy(false)) }
   const ago = lastSent ? new Date(lastSent).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null
   return (
     <div className={`card flex items-start gap-3 p-4 ${active && !error ? 'ring-1 ring-[var(--s-confirmed)]/40' : ''}`}>
@@ -46,6 +49,7 @@ function LocationStatus() {
           {active ? (error ?? (ago ? `Last sent at ${ago}` : 'Waiting for GPS…')) : 'Shared automatically Mon–Sat, 9:00 AM – 6:30 PM.'}
         </div>
         {active && <div className="mt-1 flex items-center gap-1.5 text-xs text-ink3"><Sun className="h-3.5 w-3.5" aria-hidden />{screenAwake ? 'Screen kept on — keep the phone on its mount and charging.' : 'Keep this app open on screen while driving.'}</div>}
+        {active && <Button size="sm" variant="secondary" className="mt-3" busy={busy} onClick={now}>Send my location now</Button>}
       </div>
     </div>
   )

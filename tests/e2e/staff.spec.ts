@@ -8,13 +8,13 @@ const NOW_UTC = new Date('2030-01-07T05:00:00Z')
 let fake: FakeSupabase
 
 /** Simulated push service + permission (real ones are Google / Apple / Mozilla servers). */
-async function stubPush(page: Page, opts: { granted: boolean; subscribed: boolean }) {
+async function stubPush(page: Page, opts: { granted: boolean; subscribed: boolean; failSubscribe?: boolean }) {
   await page.addInitScript(o => {
     const w = window as unknown as Record<string, unknown>
     const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-device', toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, unsubscribe: async () => { w.__sub = null; return true } }
     if (w.__sub === undefined) w.__sub = o.subscribed ? sub : null
     if (w.__perm === undefined) w.__perm = o.granted ? 'granted' : 'default'
-    const reg = { pushManager: { getSubscription: async () => w.__sub ?? null, subscribe: async () => (w.__sub = sub) } }
+    const reg = { pushManager: { getSubscription: async () => w.__sub ?? null, subscribe: async () => { if (o.failSubscribe) throw Object.assign(new Error('Push subscription failed'), { name: 'AbortError' }); return (w.__sub = sub) } } }
     Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve(reg), register: async () => reg, getRegistration: async () => reg, getRegistrations: async () => [reg], addEventListener() {}, removeEventListener() {}, controller: null } })
     if (!('PushManager' in window)) w.PushManager = function () {}
     Object.defineProperty(Notification, 'permission', { configurable: true, get: () => w.__perm as string })
@@ -178,6 +178,12 @@ test('driver: sees confirmed trips, shares location, completes a trip', async ({
 
   await expect(page.getByText('Sharing live location')).toBeVisible()          // automatic in working hours, no switch
   await expect.poll(async () => (await fake.db.pg.query('select * from public.driver_location')).rows.length).toBe(1)
+  await fake.db.pg.query('delete from public.driver_location')
+  await page.getByRole('button', { name: 'Send my location now' }).click()        // manual send, e.g. to test
+  await page.clock.runFor(1_000)
+  await expect(page.getByText('Location sent to the managers')).toBeVisible()
+  await expect.poll(async () => (await fake.db.pg.query('select * from public.driver_location')).rows.length).toBe(1)
+  await expect(page.getByRole('link', { name: 'Tierra office' })).toHaveAttribute('href', /google\.com\/maps\/search\/\?api=1&query=Tierra%20office/)
 
   await page.getByRole('button', { name: /Completed/ }).click()
   await expect(page.getByText('This trip has not started yet')).toBeVisible()
@@ -283,7 +289,7 @@ test('notifications are compulsory: blocked until turned on; signing out unregis
   await page.getByRole('button', { name: 'Send a test' }).click()
   await expect(page.getByText(/Test sent/)).toBeVisible()
   await page.getByRole('button', { name: 'Sign out' }).click()
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible({ timeout: 10_000 }) // sign-out waits up to 3 s per clean-up step on a slow network
   expect(await subs()).toEqual([])
   await page.close()
 })
@@ -303,4 +309,43 @@ test('the driver must allow location before using the app', async ({ browser }) 
   await page.getByRole('button', { name: 'Check again' }).click()
   await expect(page.getByRole('heading', { name: 'My trips' })).toBeVisible()
   await ctx.close()
+})
+
+test('an iPhone that keeps failing to switch on alerts is not locked out, and the reason is logged', async ({ browser }) => {
+  const page = await browser.newPage(); await fake.attach(page)
+  await stubPush(page, { granted: true, subscribed: false, failSubscribe: true }); await page.clock.install({ time: NOW_UTC })
+  await fake.db.pg.query(`insert into public.app_secrets (name, value) values ('vapid_public', 'BAbc') on conflict (name) do update set value = excluded.value`)
+  await signInTo(page, 'shazia')
+  const on = page.getByRole('button', { name: 'Turn on notifications' })
+  await on.click(); await page.clock.runFor(1_000)
+  await expect(page.getByText(/Close the app fully/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Continue for today/ })).toHaveCount(0)   // not after one try
+  await on.click(); await page.clock.runFor(1_000)
+  await page.getByRole('button', { name: /Continue for today/ }).click()
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  await expect.poll(async () => (await fake.db.pg.query<{ message: string }>(`select message from public.client_errors order by at`))
+    .rows.map(r => r.message).join('\n')).toMatch(/\[setup:notif\].*AbortError/)
+  await page.close()
+})
+
+test('agent: finds Dubai places from our list and the map search, or pastes a map pin', async ({ page }) => {
+  await page.route('https://photon.komoot.io/**', r => r.fulfill({ json: { features: [{ properties: { name: 'Bloom Heights', street: 'Al Khail Rd', district: 'JVC', city: 'Dubai', countrycode: 'AE' } }] } }))
+  await page.route('https://nominatim.openstreetmap.org/**', r => r.fulfill({ json: [] }))
+  await signIn(page, 'shazia')
+  await page.getByRole('button', { name: /^Tue\s*8/ }).click()
+  await page.getByRole('button', { name: /Driver free/ }).first().click()
+  const form = page.getByRole('dialog', { name: 'Book the driver' })
+  const loc = form.getByLabel(/^Location/)
+  await loc.fill('jvc')
+  await expect(form.getByRole('button', { name: 'Jumeirah Village Circle (JVC)' })).toBeVisible()  // instant, from our list
+  await loc.fill('bloom')
+  await form.getByRole('button', { name: 'Bloom Heights, Al Khail Rd, JVC, Dubai' }).click()        // from the map search
+  await expect(loc).toHaveValue('Bloom Heights, Al Khail Rd, JVC, Dubai')
+  await loc.fill('25.0849, 55.1452')                                                               // pasted pin
+  await expect(form.getByText(/Map pin — the driver can open it/)).toBeVisible()
+  await form.getByLabel('Area').selectOption('Dubai Marina')
+  await form.getByLabel(/Purpose/).fill('2BR viewing')
+  await form.getByRole('button', { name: 'Book viewing' }).click()
+  await page.getByRole('link', { name: /Mine/ }).first().click()
+  await expect(page.getByRole('link', { name: 'Map pin' })).toHaveAttribute('href', 'https://www.google.com/maps/search/?api=1&query=25.0849%2C55.1452')
 })

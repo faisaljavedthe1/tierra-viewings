@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { BellRing, Chrome, Copy, MapPin, PlusSquare, Share, ShieldAlert } from 'lucide-react'
 import { useData } from '../lib/data'
 import { enablePush, isIosBrowserTab, pushIsOn, pushSupported } from '../lib/push'
-import { effectiveGeo, recalledGeo, rememberGeo, requiredSteps, type GeoPermission, type Step } from '../lib/setup'
+import { effectiveGeo, pushCanBeSkipped, pushSkippedToday, recalledGeo, rememberGeo, requiredSteps, skipPushToday, type GeoPermission, type Step } from '../lib/setup'
+import { reportError } from '../lib/errors'
 import { Button, Mark, useToast } from '../components/ui'
 
 async function geoPermission(): Promise<GeoPermission> {
@@ -21,7 +22,7 @@ export function useSetup() {
     setSteps(requiredSteps({
       role: me.role, pushSupported: pushSupported(), iosTab: isIosBrowserTab(),
       notifPermission: typeof Notification === 'undefined' ? 'denied' : Notification.permission,
-      pushOn: await pushIsOn(), geoPermission: me.role === 'driver' ? await geoPermission() : 'granted',
+      pushOn: await pushIsOn(), pushSkipped: pushSkippedToday(), geoPermission: me.role === 'driver' ? await geoPermission() : 'granted',
     }))
   }, [me])
   useEffect(() => {
@@ -37,12 +38,19 @@ export function SetupGate({ steps, recheck }: { steps: Step[]; recheck: () => Pr
   const { me, signOut } = useData()
   const toast = useToast()
   const [busy, setBusy] = useState(false)
+  const [fails, setFails] = useState(0)
   const step = steps[0]
   const total = steps.length
   const go = async (fn: () => Promise<unknown>) => {
     setBusy(true)
-    try { await fn() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false); await recheck() }
+    try { await fn() } catch (e) {
+      toast((e as Error).message, 'err')
+      setFails(n => n + 1)
+      reportError(e, `setup:${step}`) // so the admin can see exactly why a phone is stuck
+    } finally { setBusy(false); await recheck() }
   }
+  const notifPerm = typeof Notification === 'undefined' ? 'denied' : Notification.permission
+  const canSkip = step === 'notif' && pushCanBeSkipped({ failures: fails, notifPermission: notifPerm })
   // Asking for one position is the only reliable test on iPhone; remember the outcome.
   const askLocation = () => new Promise<void>((ok, fail) => navigator.geolocation.getCurrentPosition(
     () => { rememberGeo('ok'); ok() },
@@ -71,7 +79,10 @@ export function SetupGate({ steps, recheck }: { steps: Step[]; recheck: () => Pr
     notif: {
       icon: BellRing, title: 'Turn on notifications',
       body: <p>{me?.role === 'driver' ? 'You will be told about new trips, changes and reminders before each trip.' : 'You will be told when your viewings are confirmed, moved or cancelled, and reminded before each one.'} This is required to use the app.</p>,
-      action: <Button size="lg" className="w-full" busy={busy} onClick={() => go(enablePush)}>Turn on notifications</Button>,
+      action: <>
+        <Button size="lg" className="w-full" busy={busy} onClick={() => go(enablePush)}>Turn on notifications</Button>
+        {canSkip && <Button variant="ghost" className="mt-2 w-full" onClick={() => { reportError(new Error('Skipped notifications for today after repeated failures'), 'setup:notif'); skipPushToday(); void recheck() }}>Continue for today — I'll try again tomorrow</Button>}
+      </>,
     },
     'notif-blocked': {
       icon: ShieldAlert, title: 'Notifications are blocked',

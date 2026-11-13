@@ -47,3 +47,14 @@ with a valid login, an agent, a manager and the driver. Findings were listed bef
 
 Supabase's security advisor still lists "signed-in users can execute SECURITY DEFINER functions":
 intentional — these functions are the only way to change data and each checks the caller's role.
+
+## Pen-test round 13 Nov (driver location + place search)
+| # | Finding | Status |
+|---|---------|--------|
+| 28 | Map-link check accepted look-alike hosts (google.evil.com) → phishing link on the driver's card | Fixed — exact Google hosts only, unit-tested |
+| 29 | Database accepted driver location outside working hours (only the app + 5-min sweep enforced it) | Fixed — migration 0016 refuses and clears it |
+| 30 | Error reporting never sent anything (Supabase queries are lazy; `void rpc()` never ran) | Fixed — reports now arrive; e2e-tested |
+| 31 | iPhone push-subscribe glitch locked staff on the set-up screen (Gagan, 13 Nov — he signed out/in ~10 times) | Fixed — retry, clear message, "continue for today" after 2 technical failures, reason logged |
+| 32 | Typed locations are sent to Photon (komoot) and Nominatim (OSM Foundation) | Accepted — Location fields only, never purpose/client details |
+| 33 | "Continue for today" is a phone-side gate | Accepted — asks again next day; Staff page shows who has no bell |
+| 34 | Free OSM search services have fair-use limits | Accepted — debounced; our own Dubai list works without them |

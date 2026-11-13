@@ -1,3 +1,4 @@
+import { mapsUrl, parsePlace } from '../lib/places'
 import { useState, type ReactNode } from 'react'
 import { ArrowRightLeft, CalendarClock, Check, CheckCheck, CircleDot, FileText, Flag, Hash, History, MapPin, Pencil, StickyNote, User, X, type LucideIcon } from 'lucide-react'
 import { api } from '../lib/api'
@@ -43,8 +44,8 @@ export function BookingCard({ b, showDate, plain }: { b: Booking; showDate?: boo
         <StatusPill s={b.status} />
       </div>
       <div className="mt-3 space-y-1.5 text-[14.5px]">
-        {b.trip_type === 'pickup' && <Row icon={CircleDot}><span className="text-ink3">Pick-up</span> {b.pickup_location}</Row>}
-        <Row icon={MapPin}>{b.trip_type === 'pickup' && <span className="text-ink3">To </span>}{b.location}</Row>
+        {b.trip_type === 'pickup' && <Row icon={CircleDot}><span className="text-ink3">Pick-up</span> <MapsLink place={b.pickup_location ?? ''} /></Row>}
+        <Row icon={MapPin}>{b.trip_type === 'pickup' && <span className="text-ink3">To </span>}<MapsLink place={b.location} /></Row>
         {b.purpose != null && <Row icon={FileText}>{b.purpose}</Row>}
         {b.notes && <Row icon={StickyNote}>{b.notes}</Row>}
         <Row icon={User}>{agentOf(b)}{b.client_ref && <span className="text-ink3"> · <Hash className="inline h-3 w-3" aria-hidden />{b.client_ref}</span>}</Row>
@@ -106,4 +107,12 @@ function RescheduleDialog({ b, onClose }: { b: Booking; onClose: () => void }) {
       </div>
     </Modal>
   )
+}
+
+/** Every location opens in Google Maps (free for people to use; only Google's developer APIs cost money). */
+function MapsLink({ place }: { place: string }) {
+  const url = mapsUrl(place)
+  const p = parsePlace(place)
+  const label = p.kind === 'coords' ? 'Map pin' : p.kind === 'link' ? 'Google Maps link' : place
+  return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="underline decoration-line2 underline-offset-2 hover:text-brand">{label}</a> : <>{place}</>
 }

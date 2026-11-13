@@ -39,3 +39,25 @@ describe('driver location is shared automatically during working hours only', ()
     expect(isWorkingTime(at('2026-11-22T08:00:00Z'))).toBe(false)  // Sun
   })
 })
+
+describe('notifications that fail for technical reasons do not lock people out', () => {
+  it('lets the person continue after two technical failures, but never when they blocked alerts', async () => {
+    const { pushCanBeSkipped } = await import('../../src/lib/setup')
+    expect(pushCanBeSkipped({ failures: 1, notifPermission: 'granted' })).toBe(false)
+    expect(pushCanBeSkipped({ failures: 2, notifPermission: 'granted' })).toBe(true)
+    expect(pushCanBeSkipped({ failures: 5, notifPermission: 'denied' })).toBe(false)
+    expect(pushCanBeSkipped({ failures: 5, notifPermission: 'default' })).toBe(false)
+  })
+  it('remembers a skip only for today, so the app asks again tomorrow', async () => {
+    const { skipPushToday, pushSkippedToday } = await import('../../src/lib/setup')
+    const store = new Map<string, string>()
+    globalThis.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) } as unknown as Storage
+    expect(pushSkippedToday(new Date('2026-11-13T10:00:00Z'))).toBe(false)
+    skipPushToday(new Date('2026-11-13T10:00:00Z'))
+    expect(pushSkippedToday(new Date('2026-11-13T19:00:00Z'))).toBe(true)  // 11 PM Dubai, same day
+    expect(pushSkippedToday(new Date('2026-11-13T20:30:00Z'))).toBe(false) // 00:30 next day in Dubai
+  })
+  it('a skipped push step is not required, other steps still are', () => {
+    expect(requiredSteps({ ...base, role: 'driver', pushOn: false, notifPermission: 'granted', geoPermission: 'prompt', pushSkipped: true })).toEqual(['location'])
+  })
+})

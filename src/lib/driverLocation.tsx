@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from './api'
 import { isWorkingTime, rememberGeo } from './setup'
+import { reportError } from './errors'
 
-export interface DriverLoc { active: boolean; lastSent: number | null; error: string | null; screenAwake: boolean }
-const Ctx = createContext<DriverLoc>({ active: false, lastSent: null, error: null, screenAwake: false })
+export interface DriverLoc { active: boolean; lastSent: number | null; error: string | null; screenAwake: boolean; sendNow: () => Promise<void> }
+const Ctx = createContext<DriverLoc>({ active: false, lastSent: null, error: null, screenAwake: false, sendNow: async () => {} })
 export const useDriverLocation = () => useContext(Ctx)
 
 /**
@@ -13,8 +14,19 @@ export const useDriverLocation = () => useContext(Ctx)
  */
 export function DriverLocationProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const [working, setWorking] = useState(() => isWorkingTime())
-  const [state, setState] = useState<DriverLoc>({ active: false, lastSent: null, error: null, screenAwake: false })
+  const [state, setState] = useState<Omit<DriverLoc, 'sendNow'>>({ active: false, lastSent: null, error: null, screenAwake: false })
   const sentAt = useRef(0)
+  const reported = useRef(new Set<string>())
+  const report = (what: string, e: unknown) => { if (!reported.current.has(what)) { reported.current.add(what); reportError(e, `location:${what}`) } }
+  const send = (p: GeolocationPosition) => api.shareLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy)
+    .then(() => { sentAt.current = Date.now(); setState(s => ({ ...s, lastSent: Date.now(), error: null })) })
+    .catch(e => { report('send', e); setState(s => ({ ...s, error: (e as Error).message })); throw e })
+
+  /** A manual "send now" — also the quickest test that everything works. */
+  const sendNow = () => new Promise<void>((ok, fail) => navigator.geolocation.getCurrentPosition(
+    p => { rememberGeo('ok'); send(p).then(ok, fail) },
+    e => { report(`gps-${e.code}`, new Error(e.message || `GPS error ${e.code}`)); fail(new Error(e.code === 1 ? 'Location is blocked for this app — see the steps in Settings.' : 'Could not get a GPS fix — step outside or near a window and try again.')) },
+    { enableHighAccuracy: true, timeout: 20_000, maximumAge: 10_000 }))
 
   useEffect(() => { const t = setInterval(() => setWorking(isWorkingTime()), 60_000); return () => clearInterval(t) }, [])
 
@@ -27,10 +39,9 @@ export function DriverLocationProvider({ enabled, children }: { enabled: boolean
       rememberGeo('ok')
       if (Date.now() - sentAt.current < 20_000) return
       sentAt.current = Date.now()
-      api.shareLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy)
-        .then(() => setState(s => ({ ...s, lastSent: Date.now(), error: null })))
-        .catch(e => setState(s => ({ ...s, error: (e as Error).message })))
+      send(p).catch(() => {})
     }, e => {
+      report(`gps-${e.code}`, new Error(e.message || `GPS error ${e.code}`))
       if (e.code === 1) rememberGeo('denied') // the set-up screen will show the fix-it steps
       setState(s => ({ ...s, error: e.code === 1 ? 'Location permission is off — reopen the app to fix it' : 'Waiting for GPS…' }))
     },
@@ -54,5 +65,5 @@ export function DriverLocationProvider({ enabled, children }: { enabled: boolean
     }
   }, [enabled, working])
 
-  return <Ctx.Provider value={state}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ ...state, sendNow }}>{children}</Ctx.Provider>
 }

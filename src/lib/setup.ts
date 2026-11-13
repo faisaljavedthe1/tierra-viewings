@@ -7,11 +7,14 @@ export type GeoPermission = 'granted' | 'denied' | 'prompt' | 'unknown'
 /** Set-up that must be done before the app can be used (Faisal's rule, 13 Nov 2026). */
 export function requiredSteps(s: {
   role: Role; pushSupported: boolean; iosTab: boolean; notifPermission: NotificationPermission; pushOn: boolean; geoPermission: GeoPermission
+  pushSkipped?: boolean
 }): Step[] {
-  if (s.iosTab) return ['install-ios']
-  if (!s.pushSupported) return ['unsupported']
   const steps: Step[] = []
-  if (!s.pushOn) steps.push(s.notifPermission === 'denied' ? 'notif-blocked' : 'notif')
+  if (!s.pushSkipped) {
+    if (s.iosTab) return ['install-ios']
+    if (!s.pushSupported) return ['unsupported']
+  }
+  if (!s.pushOn && !s.pushSkipped) steps.push(s.notifPermission === 'denied' ? 'notif-blocked' : 'notif')
   if (s.role === 'driver' && s.geoPermission !== 'granted') steps.push(s.geoPermission === 'denied' ? 'location-blocked' : 'location')
   return steps
 }
@@ -35,3 +38,14 @@ export function effectiveGeo(query: GeoPermission, memory: GeoMemory): GeoPermis
   if (memory === 'ok') return 'granted'
   return query
 }
+
+/**
+ * Notifications stay compulsory, but if the phone itself keeps failing to switch them on (an iPhone quirk, not the
+ * person saying no), they may carry on for today after two tries. Blocked alerts still need fixing in Settings.
+ */
+export function pushCanBeSkipped(s: { failures: number; notifPermission: NotificationPermission }) {
+  return s.notifPermission === 'granted' && s.failures >= 2
+}
+const SKIP_KEY = 'tv-push-skip'
+export function skipPushToday(now = new Date()) { try { localStorage.setItem(SKIP_KEY, dubaiToday(now)) } catch { /* private mode */ } }
+export function pushSkippedToday(now = new Date()) { try { return localStorage.getItem(SKIP_KEY) === dubaiToday(now) } catch { return false } }
