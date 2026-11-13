@@ -48,14 +48,14 @@ Deno.serve(async req => {
   const password = typeof body.password === 'string' ? body.password : ''
   if (body.action !== 'create_many' && (password.length < 8 || password.length > 72)) return reply(h, 400, { error: 'Password must be 8–72 characters' })
 
-  async function createOne(p: { email: string; full_name: string; role: string; department: string | null; phone: string | null }, pw: string) {
+  async function createOne(p: { email: string; full_name: string; role: string; job_title?: string | null; department: string | null; phone: string | null }, pw: string) {
     if (!EMAIL.test(p.email)) return 'Enter a valid email'
     if (!p.full_name) return 'Enter the full name'
     if (!ROLES.includes(p.role)) return 'Pick a role'
     if (p.phone && !PHONE.test(p.phone)) return 'Phone must look like +971501234567'
     const { data, error } = await admin.auth.admin.createUser({ email: p.email, password: pw, email_confirm: true, user_metadata: { full_name: p.full_name } })
     if (error) return /already/i.test(error.message) ? 'This email already has a login' : error.message
-    const { error: e2 } = await admin.from('profiles').update({ full_name: p.full_name, role: p.role, department: p.department, phone: p.phone, active: true, must_change_password: true }).eq('id', data.user.id)
+    const { error: e2 } = await admin.from('profiles').update({ full_name: p.full_name, role: p.role, job_title: p.job_title ?? null, department: p.department, phone: p.phone, active: true, must_change_password: true }).eq('id', data.user.id)
     return e2 ? e2.message : null
   }
 
@@ -65,7 +65,7 @@ Deno.serve(async req => {
     const results = []
     for (const raw of list as Record<string, unknown>[]) {
       const s2 = (k: string, max: number) => (typeof raw[k] === 'string' ? (raw[k] as string).trim().slice(0, max) : '')
-      const p = { email: s2('email', 254).toLowerCase(), full_name: s2('full_name', 80), role: s2('role', 10) || 'agent', department: s2('department', 80) || null, phone: s2('phone', 20) || null }
+      const p = { email: s2('email', 254).toLowerCase(), full_name: s2('full_name', 80), role: s2('role', 10) || 'agent', job_title: s2('job_title', 80) || null, department: s2('department', 80) || null, phone: s2('phone', 20) || null }
       const pw = tempPassword()
       const err = await createOne(p, pw)
       results.push(err ? { email: p.email, full_name: p.full_name, ok: false, error: err } : { email: p.email, full_name: p.full_name, ok: true, password: pw })
@@ -74,7 +74,7 @@ Deno.serve(async req => {
   }
 
   if (body.action === 'create') {
-    const err = await createOne({ email: str('email', 254).toLowerCase(), full_name: str('full_name', 80), role: str('role', 10),
+    const err = await createOne({ email: str('email', 254).toLowerCase(), full_name: str('full_name', 80), role: str('role', 10), job_title: str('job_title', 80) || null,
       department: str('department', 80) || null, phone: str('phone', 20) || null }, password)
     return err ? reply(h, 400, { error: err }) : reply(h, 200, { ok: true })
   }

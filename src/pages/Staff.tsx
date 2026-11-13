@@ -41,7 +41,7 @@ export function Staff() {
             <div key={p.id} className={`card flex flex-wrap items-center gap-3 p-3 ${p.active ? '' : 'opacity-60'}`}>
               <div className="min-w-40 flex-1">
                 <div className="font-bold">{p.full_name}{p.id === me?.id && <span className="text-fg3"> (you)</span>}</div>
-                <div className="text-xs text-fg2">{p.department ?? '—'} · {p.phone ?? 'no phone'}</div>
+                <div className="text-xs text-fg2">{[p.job_title, p.department].filter(Boolean).join(' · ') || '—'} · {p.phone ?? 'no phone'}</div>
               </div>
               <select aria-label={`Role for ${p.full_name}`} className="input w-auto py-1.5" value={p.role} disabled={p.id === me?.id} onChange={e => save(p, { role: e.target.value as Role })}>
                 {ROLES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
@@ -123,7 +123,9 @@ function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promi
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<Result[] | null>(null)
-  const parsed = parseStaffList(text)
+  const [roleOf, setRoleOf] = useState<Record<string, Role>>({})
+  const raw = parseStaffList(text)
+  const parsed = { ...raw, rows: raw.rows.map(r => ({ ...r, role: roleOf[r.email] ?? r.role })) }
   const byEmail = new Map<string, StaffRow>(parsed.rows.map(r => [r.email, r]))
   const site = location.origin
 
@@ -162,15 +164,20 @@ function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promi
 
   return (
     <Modal title="Add many staff" wide onClose={onClose}>
-      <p className="mb-2 text-sm text-fg2">One person per line: <b>Name, email, phone, role, department</b>. Role is agent, manager, driver or admin (blank = agent). You can paste straight from Excel or Google Sheets.</p>
+      <p className="mb-2 text-sm text-fg2">One person per line: <b>Name, email, phone, position, department</b> — paste straight from Excel or Google Sheets. Then choose each person's <b>app access</b> in the table: <i>Agent</i> books viewings, <i>Manager</i> also confirms and reschedules, <i>Driver</i> sees trips, <i>Admin</i> manages staff.</p>
       <textarea className="input min-h-48 font-mono text-[13px]" value={text} onChange={e => setText(e.target.value)} aria-label="Staff list"
         placeholder={'Shazia Larik, larik.srso@gmail.com, +971522647579, agent, Sales Department\nGagan Malla, gaganmalla23@gmail.com, +971505244024, driver'} />
       {parsed.errors.length > 0 && <ul className="mt-2 space-y-0.5 text-sm text-red-600 dark:text-red-400">{parsed.errors.map(e => <li key={e}>⚠ {e}</li>)}</ul>}
       {parsed.rows.length > 0 && (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-fg3"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Department</th></tr></thead>
-            <tbody>{parsed.rows.map(r => <tr key={r.email} className="border-t border-line"><td className="py-1 font-medium">{r.full_name}</td><td>{r.email}</td><td>{r.phone}</td><td className="capitalize">{r.role}</td><td>{r.department}</td></tr>)}</tbody>
+            <thead className="text-left text-fg3"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Position</th><th>Department</th><th>App access</th></tr></thead>
+            <tbody>{parsed.rows.map(r => (
+              <tr key={r.email} className="border-t border-line">
+                <td className="py-1 font-medium">{r.full_name}</td><td>{r.email}</td><td>{r.phone}</td><td>{r.job_title}</td><td>{r.department}</td>
+                <td><select aria-label={`App access for ${r.full_name}`} className="input w-auto py-1" value={r.role} onChange={e => setRoleOf(x => ({ ...x, [r.email]: e.target.value as Role }))}>
+                  {ROLES.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}</select></td>
+              </tr>))}</tbody>
           </table>
         </div>
       )}

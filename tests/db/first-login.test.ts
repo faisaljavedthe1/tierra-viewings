@@ -31,3 +31,10 @@ it('#1 until the new password is set, the server gives no data and accepts no bo
   await db.as(U.agent, 'select public.password_changed()')
   expect((await db.as(U.agent, 'select id from public.profiles')).length).toBe(3)
 })
+
+it('job titles are stored separately from app roles and are length-limited', async () => {
+  await db.pg.query(`update public.profiles set job_title = 'Accountant' where id = $1`, [U.agent])
+  expect((await db.as<{ role: string; job_title: string }>(U.agent2, 'select role, job_title from public.profiles where id=$1', [U.agent]))[0]).toEqual({ role: 'agent', job_title: 'Accountant' })
+  await expect(db.pg.query(`update public.profiles set job_title = repeat('x', 81) where id = $1`, [U.agent])).rejects.toThrow(/check/)
+  await expect(db.as(U.agent, `update public.profiles set job_title = 'CEO' where id = $1`, [U.agent])).rejects.toThrow(/permission denied/)
+})

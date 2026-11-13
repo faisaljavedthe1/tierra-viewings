@@ -39,7 +39,7 @@ export const api = {
     }
   },
   async profiles(): Promise<Profile[]> {
-    const { data, error } = await supabase.from('profiles').select('id, full_name, role, department, phone, active, must_change_password').order('full_name')
+    const { data, error } = await supabase.from('profiles').select('id, full_name, role, job_title, department, phone, active, must_change_password').order('full_name')
     if (error) throw new Error(friendly(error))
     return data as Profile[]
   },

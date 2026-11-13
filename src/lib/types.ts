@@ -7,6 +7,7 @@ export interface Profile {
   full_name: string
   role: Role
   department: string | null
+  job_title?: string | null
   phone: string | null
   active: boolean
   must_change_password?: boolean

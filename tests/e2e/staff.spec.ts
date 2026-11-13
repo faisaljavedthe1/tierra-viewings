@@ -215,8 +215,11 @@ test('admin: adds many staff at once; a new person must choose a password, then 
   await d.getByLabel('Staff list').fill('Name, Email, Phone, Role, Department\nOshani Amaranath, oshani@tierra.test, 054 526 4159, agent, Operations/Management Department\nShazia Again, shazia@tierra.test, +971522647579\nBad Line, nope')
   await expect(d.getByText('Line 4: email "nope" is not valid')).toBeVisible()
   await expect(d.getByRole('button', { name: /Create 2 logins/ })).toBeDisabled()
-  await d.getByLabel('Staff list').fill('Oshani Amaranath, oshani@tierra.test, 054 526 4159, agent, Operations/Management Department\nShazia Again, shazia@tierra.test, +971522647579')
+  await d.getByLabel('Staff list').fill('Oshani Amaranath, oshani@tierra.test, 054 526 4159, Accountant, Accounts Department\nShazia Again, shazia@tierra.test, +971522647579')
   await expect(d.getByRole('cell', { name: '+971545264159' })).toBeVisible()
+  await expect(d.getByRole('cell', { name: 'Accountant' })).toBeVisible()
+  await expect(d.getByLabel('App access for Oshani Amaranath')).toHaveValue('agent')
+  await d.getByLabel('App access for Oshani Amaranath').selectOption('manager')
   await d.getByRole('button', { name: 'Create 2 logins' }).click()
 
   const done = page.getByRole('dialog', { name: 'Logins created' })
@@ -236,5 +239,7 @@ test('admin: adds many staff at once; a new person must choose a password, then 
   await p2.getByRole('link', { name: /Mine/ }).click()
   await p2.getByRole('tab', { name: 'Completed' }).click()
   await expect(p2.getByText('Cheque deposit')).toBeVisible()                       // her old Firebase booking is hers now
+  const [o] = await fake.db.pg.query<{ role: string; job_title: string }>(`select role, job_title from public.profiles where full_name='Oshani Amaranath'`).then(r => r.rows)
+  expect(o).toEqual({ role: 'manager', job_title: 'Accountant' })
   await p2.close()
 })

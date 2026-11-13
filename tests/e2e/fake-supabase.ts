@@ -86,7 +86,7 @@ export class FakeSupabase {
           if (this.passwords.has(p.email)) { results.push({ email: p.email, full_name: p.full_name, ok: false, error: 'This email already has a login' }); continue }
           const id = crypto.randomUUID(), pw = 'Temp-' + id.slice(0, 8)
           await this.db.pg.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, jsonb_build_object('full_name', $3::text))`, [id, p.email, p.full_name])
-          await this.db.pg.query(`update public.profiles set role=$2, department=nullif($3,''), phone=nullif($4,''), active=true, must_change_password=true where id=$1`, [id, p.role, p.department, p.phone])
+          await this.db.pg.query(`update public.profiles set role=$2, department=nullif($3,''), phone=nullif($4,''), job_title=nullif($5,''), active=true, must_change_password=true where id=$1`, [id, p.role, p.department, p.phone, p.job_title ?? ''])
           this.passwords.set(p.email, { id, password: pw })
           results.push({ email: p.email, full_name: p.full_name, ok: true, password: pw })
         }

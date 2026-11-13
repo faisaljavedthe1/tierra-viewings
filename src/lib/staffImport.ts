@@ -1,6 +1,7 @@
 import type { Role } from './types'
 
-export interface StaffRow { full_name: string; email: string; phone: string; role: Role; department: string }
+export interface StaffRow { full_name: string; email: string; phone: string; role: Role; job_title: string; department: string }
+const TITLE_FOR: Record<Role, string> = { agent: '', manager: 'Manager', driver: 'Driver', admin: 'Admin' }
 const ROLES: Role[] = ['agent', 'manager', 'driver', 'admin']
 
 /** UAE-friendly phone clean-up: "050 123 4567" → "+971501234567". Empty stays empty. */
@@ -14,7 +15,9 @@ export function normalisePhone(raw: string) {
   return d
 }
 
-/** One person per line: name, email, phone, role, department (commas or tabs). */
+/** One person per line: name, email, phone, position, department (commas or tabs).
+ *  Position is a job title ("Accountant"); the words agent / manager / driver / admin also set app permissions.
+ *  Everyone else starts as an agent — the admin can change the app role in the preview before creating. */
 export function parseStaffList(text: string) {
   const rows: StaffRow[] = [], errors: string[] = [], seen = new Set<string>()
   const lines = text.split(/\r?\n/)
@@ -24,15 +27,19 @@ export function parseStaffList(text: string) {
     const c = line.split(/\t|,/).map(s => s.trim())
     if (i === 0 && /^e-?mail$/i.test(c[1] ?? '')) return // header row (Name, Email, …)
     const n = i + 1
-    const [full_name = '', emailRaw = '', phoneRaw = '', roleRaw = '', ...dept] = c
-    const email = emailRaw.toLowerCase(), phone = normalisePhone(phoneRaw), role = (roleRaw.toLowerCase() || 'agent') as Role
+    const [full_name = '', emailRaw = '', phoneRaw = '', posRaw = '', ...rest] = c
+    let position = posRaw, dept = rest.join(', ')
+    if (!dept && /department$/i.test(position)) { dept = position; position = '' } // "…, phone, Admin Department"
+    const email = emailRaw.toLowerCase(), phone = normalisePhone(phoneRaw)
+    const word = position.toLowerCase() as Role
+    const role: Role = ROLES.includes(word) ? word : 'agent'
+    const job_title = ROLES.includes(word) ? TITLE_FOR[word] : position
     if (!full_name) return errors.push(`Line ${n}: name is missing`)
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return errors.push(`Line ${n}: email "${emailRaw}" is not valid`)
     if (phone && !/^\+[0-9]{8,15}$/.test(phone)) return errors.push(`Line ${n}: phone "${phoneRaw}" should look like +971501234567`)
-    if (!ROLES.includes(role)) return errors.push(`Line ${n}: role "${roleRaw}" — use agent, manager, driver or admin`)
     if (seen.has(email)) return errors.push(`Line ${n}: ${email} appears twice`)
     seen.add(email)
-    rows.push({ full_name: full_name.slice(0, 80), email, phone, role, department: dept.join(', ').slice(0, 80) })
+    rows.push({ full_name: full_name.slice(0, 80), email, phone, role, job_title: job_title.slice(0, 80), department: dept.slice(0, 80) })
   })
   return { rows, errors }
 }
