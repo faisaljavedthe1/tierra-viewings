@@ -204,3 +204,37 @@ test('everyone can change their password and sign out', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
 })
+
+test('admin: adds many staff at once; a new person must choose a password, then sees their old bookings', async ({ page, browser }) => {
+  await fake.db.pg.query(`insert into public.bookings (legacy_id, agent_name, date, start_time, duration_mins, area, location, purpose, status)
+    values ('-OLD1', 'Oshani Amaranath', '2029-12-20', '10:00', 60, 'Al Barsha', 'Al Rasis Business Centre', 'Cheque deposit', 'completed')`)
+  await signIn(page, 'faisal')
+  await page.getByRole('link', { name: /Staff/ }).click()
+  await page.getByRole('button', { name: 'Add many' }).click()
+  const d = page.getByRole('dialog', { name: 'Add many staff' })
+  await d.getByLabel('Staff list').fill('Name, Email, Phone, Role, Department\nOshani Amaranath, oshani@tierra.test, 054 526 4159, agent, Operations/Management Department\nShazia Again, shazia@tierra.test, +971522647579\nBad Line, nope')
+  await expect(d.getByText('Line 4: email "nope" is not valid')).toBeVisible()
+  await expect(d.getByRole('button', { name: /Create 2 logins/ })).toBeDisabled()
+  await d.getByLabel('Staff list').fill('Oshani Amaranath, oshani@tierra.test, 054 526 4159, agent, Operations/Management Department\nShazia Again, shazia@tierra.test, +971522647579')
+  await expect(d.getByRole('cell', { name: '+971545264159' })).toBeVisible()
+  await d.getByRole('button', { name: 'Create 2 logins' }).click()
+
+  const done = page.getByRole('dialog', { name: 'Logins created' })
+  await expect(done.getByText('This email already has a login')).toBeVisible()      // Shazia already exists
+  const row = done.locator('.card').filter({ hasText: 'Oshani Amaranath' })
+  await expect(row.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', /wa\.me\/971545264159\?text=.*Temporary%20password/)
+  const temp = (await row.locator('.font-mono').textContent())!.trim()
+
+  const p2 = await browser.newPage(); await fake.attach(p2); await p2.clock.install({ time: NOW_UTC })
+  await p2.goto('/'); await p2.getByLabel('Email').fill('oshani@tierra.test'); await p2.getByLabel('Password').fill(temp)
+  await p2.getByRole('button', { name: 'Sign in' }).click()
+  await expect(p2.getByRole('heading', { name: 'Welcome, Oshani' })).toBeVisible()
+  await p2.getByLabel('New password (8+ characters)').fill('Oshani-own-pass-1')
+  await p2.getByLabel('Repeat new password').fill('Oshani-own-pass-1')
+  await p2.getByRole('button', { name: 'Save and continue' }).click()
+  await expect(p2.getByRole('heading', { name: 'Driver calendar' })).toBeVisible()
+  await p2.getByRole('link', { name: /Mine/ }).click()
+  await p2.getByRole('tab', { name: 'Completed' }).click()
+  await expect(p2.getByText('Cheque deposit')).toBeVisible()                       // her old Firebase booking is hers now
+  await p2.close()
+})

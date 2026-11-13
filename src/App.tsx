@@ -10,6 +10,7 @@ import { Calendar } from './pages/Calendar'
 import { Mine } from './pages/Mine'
 import { Driver } from './pages/Driver'
 import { Account } from './pages/Account'
+import { FirstLogin } from './pages/FirstLogin'
 
 const Manage = lazy(() => import('./pages/Manage').then(m => ({ default: m.Manage })))
 const Staff = lazy(() => import('./pages/Staff').then(m => ({ default: m.Staff })))
@@ -29,6 +30,7 @@ function Shell() {
   if (!session) return <Login />
   if (loading && !me) return <div className="flex h-full items-center justify-center text-fg2">Loading…</div>
   if (!me?.active) return <NotActive onSignOut={signOut} />
+  if (me.must_change_password) return <FirstLogin />
   const tabs = TABS.filter(t => t.roles.includes(me.role))
   const pending = isManagerRole(me.role) ? bookings.filter(b => b.status === 'pending' || b.status === 'rescheduled').length : 0
   return (

@@ -3,6 +3,8 @@ import { api } from '../lib/api'
 import { useData } from '../lib/data'
 import { DEPARTMENTS } from '../lib/constants'
 import type { Profile, Role } from '../lib/types'
+import { parseStaffList, welcomeMessage, type StaffRow } from '../lib/staffImport'
+import { waLink } from '../lib/whatsapp'
 import { Button, Chips, Field, Modal, useToast } from '../components/ui'
 
 const ROLES: { v: Role; l: string }[] = [{ v: 'agent', l: 'Agent' }, { v: 'manager', l: 'Manager' }, { v: 'driver', l: 'Driver' }, { v: 'admin', l: 'Admin' }]
@@ -13,6 +15,7 @@ export function Staff() {
   const toast = useToast()
   const [tab, setTab] = useState<'staff' | 'errors'>('staff')
   const [adding, setAdding] = useState(false)
+  const [bulk, setBulk] = useState(false)
   const [resetFor, setResetFor] = useState<Profile | null>(null)
 
   async function save(p: Profile, patch: Partial<Profile>) {
@@ -26,7 +29,10 @@ export function Staff() {
     <div className="page-in space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Staff</h1>
-        <Button onClick={() => setAdding(true)}>＋ Add staff</Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setBulk(true)}>Add many</Button>
+          <Button onClick={() => setAdding(true)}>＋ Add staff</Button>
+        </div>
       </div>
       <Chips value={tab} onChange={setTab} options={[{ v: 'staff', l: `People (${profiles.length})` }, { v: 'errors', l: 'Error log' }]} />
       {tab === 'errors' ? <ErrorLog /> : (
@@ -47,6 +53,7 @@ export function Staff() {
         </div>
       )}
       {adding && <AddStaff onClose={() => setAdding(false)} onDone={refresh} />}
+      {bulk && <AddMany onClose={() => setBulk(false)} onDone={refresh} />}
       {resetFor && <ResetPassword p={resetFor} onClose={() => setResetFor(null)} />}
     </div>
   )
@@ -105,5 +112,71 @@ function ErrorLog() {
         </details>
       ))}
     </div>
+  )
+}
+
+interface Result { email: string; full_name: string; ok: boolean; password?: string; error?: string }
+
+/** Paste a list (from WhatsApp, Excel or Sheets); the server creates each login with its own temporary password. */
+function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promise<void> }) {
+  const toast = useToast()
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [results, setResults] = useState<Result[] | null>(null)
+  const parsed = parseStaffList(text)
+  const byEmail = new Map<string, StaffRow>(parsed.rows.map(r => [r.email, r]))
+  const site = location.origin
+
+  async function create() {
+    setBusy(true)
+    try {
+      const r = (await api.adminStaff({ action: 'create_many', people: parsed.rows })) as { results: Result[] }
+      setResults(r.results); await onDone()
+      toast(`${r.results.filter(x => x.ok).length} of ${r.results.length} logins created`, 'ok')
+    } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
+  }
+  const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast('Copied', 'ok'), () => toast('Copy failed — select the text instead', 'err'))
+
+  if (results) return (
+    <Modal title="Logins created" wide onClose={onClose}>
+      <p className="mb-3 text-sm text-fg2">Send each person their login. Temporary passwords are shown <b>only now</b> — they will be asked to choose their own at first sign-in.</p>
+      <div className="space-y-2">
+        {results.map(r => {
+          const msg = r.password ? welcomeMessage(r.full_name, r.email, r.password, site) : ''
+          const wa = r.password ? waLink(byEmail.get(r.email)?.phone, msg) : null
+          return (
+            <div key={r.email} className="card flex flex-wrap items-center gap-2 p-3 text-sm">
+              <div className="min-w-48 flex-1"><b>{r.full_name}</b> · {r.email}
+                {r.ok ? <div className="font-mono text-fg2">{r.password}</div> : <div className="text-red-600 dark:text-red-400">✕ {r.error}</div>}</div>
+              {r.ok && <>
+                {wa && <a className="rounded-xl bg-emerald-600 px-3 py-1.5 font-semibold text-white" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+                <Button size="sm" variant="ghost" onClick={() => copy(msg)}>Copy message</Button>
+              </>}
+            </div>
+          )
+        })}
+      </div>
+      <Button className="mt-4 w-full" onClick={onClose}>Done</Button>
+    </Modal>
+  )
+
+  return (
+    <Modal title="Add many staff" wide onClose={onClose}>
+      <p className="mb-2 text-sm text-fg2">One person per line: <b>Name, email, phone, role, department</b>. Role is agent, manager, driver or admin (blank = agent). You can paste straight from Excel or Google Sheets.</p>
+      <textarea className="input min-h-48 font-mono text-[13px]" value={text} onChange={e => setText(e.target.value)} aria-label="Staff list"
+        placeholder={'Shazia Larik, larik.srso@gmail.com, +971522647579, agent, Sales Department\nGagan Malla, gaganmalla23@gmail.com, +971505244024, driver'} />
+      {parsed.errors.length > 0 && <ul className="mt-2 space-y-0.5 text-sm text-red-600 dark:text-red-400">{parsed.errors.map(e => <li key={e}>⚠ {e}</li>)}</ul>}
+      {parsed.rows.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-fg3"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Department</th></tr></thead>
+            <tbody>{parsed.rows.map(r => <tr key={r.email} className="border-t border-line"><td className="py-1 font-medium">{r.full_name}</td><td>{r.email}</td><td>{r.phone}</td><td className="capitalize">{r.role}</td><td>{r.department}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
+      <Button className="mt-4 w-full" busy={busy} disabled={!parsed.rows.length || parsed.errors.length > 0} onClick={create}>
+        Create {parsed.rows.length || ''} login{parsed.rows.length === 1 ? '' : 's'}
+      </Button>
+    </Modal>
   )
 }

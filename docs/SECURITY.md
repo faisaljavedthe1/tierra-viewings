@@ -35,6 +35,8 @@ with a valid login, an agent, a manager and the driver. Findings were listed bef
 | 16 | Realtime not covered by automated tests | Check on real devices after deploy |
 | 17 | 530 KB main bundle | Fixed — split into react / supabase / app chunks |
 | 18 | Free project pauses after 7 idle days | Mitigated — nightly backup counts as activity |
+| 19 | First-login password change was enforced only by the app screen | Fixed (0009) — server refuses data until changed |
+| 20 | Temporary passwords sent over WhatsApp | Accepted — only valid until first sign-in, change is forced |
 
 Supabase's security advisor still lists "signed-in users can execute SECURITY DEFINER functions":
 intentional — these functions are the only way to change data and each checks the caller's role.

@@ -18,6 +18,7 @@ export const api = {
   reschedule: (id: string, date: string, start: string) => rpc<Booking>('reschedule_booking', { bid: id, new_date: date, new_start: start }),
   complete: (id: string) => rpc<Booking>('complete_trip', { bid: id }),
   shareLocation: (lat: number, lng: number, accuracy: number) => rpc<void>('update_driver_location', { p_lat: lat, p_lng: lng, p_accuracy: Math.round(accuracy) }),
+  passwordChanged: () => rpc<void>('password_changed', {}),
   clearLocation: () => rpc<void>('clear_driver_location', {}),
   updateStaff: (id: string, role: Role | null, active: boolean | null, department: string | null, phone: string | null) =>
     rpc<void>('admin_update_staff', { uid: id, new_role: role, new_active: active, new_department: department, new_phone: phone }),
@@ -38,7 +39,7 @@ export const api = {
     }
   },
   async profiles(): Promise<Profile[]> {
-    const { data, error } = await supabase.from('profiles').select('id, full_name, role, department, phone, active').order('full_name')
+    const { data, error } = await supabase.from('profiles').select('id, full_name, role, department, phone, active, must_change_password').order('full_name')
     if (error) throw new Error(friendly(error))
     return data as Profile[]
   },

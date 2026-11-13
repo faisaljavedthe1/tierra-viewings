@@ -9,6 +9,7 @@ export interface Profile {
   department: string | null
   phone: string | null
   active: boolean
+  must_change_password?: boolean
 }
 
 export interface Booking {

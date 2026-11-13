@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useData } from '../lib/data'
+import { api } from '../lib/api'
 import { askNotifications, canNotify } from '../lib/notify'
 import { supabase, friendly } from '../lib/supabase'
 import { getTheme, setTheme, type Theme } from '../lib/theme'
@@ -36,7 +37,7 @@ export function Account() {
         setBusy(true)
         const { error } = await supabase.auth.updateUser({ password: pw })
         setBusy(false)
-        if (error) toast(friendly(error), 'err'); else { toast('Password changed', 'ok'); setPw(''); setPw2('') }
+        if (error) toast(friendly(error), 'err'); else { await api.passwordChanged().catch(() => {}); toast('Password changed', 'ok'); setPw(''); setPw2('') }
       }}>
         <h2 className="font-bold">Change password</h2>
         <Field label="New password"><input className="input" type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} /></Field>
