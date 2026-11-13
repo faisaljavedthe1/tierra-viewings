@@ -1,0 +1,10 @@
+// Cloudflare Workers static assets (free plan). Built by `npm run build` into dist/.
+{
+  "name": "tierra-viewings",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Any app route (/manage, /trips…) serves index.html; the React app handles it.
+    "not_found_handling": "single-page-application"
+  }
+}
