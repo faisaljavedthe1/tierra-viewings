@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { BellRing, Chrome, Copy, MapPin, PlusSquare, Share, ShieldAlert } from 'lucide-react'
 import { useData } from '../lib/data'
 import { enablePush, isIosBrowserTab, pushIsOn, pushSupported } from '../lib/push'
-import { requiredSteps, type GeoPermission, type Step } from '../lib/setup'
+import { effectiveGeo, recalledGeo, rememberGeo, requiredSteps, type GeoPermission, type Step } from '../lib/setup'
 import { Button, Mark, useToast } from '../components/ui'
 
 async function geoPermission(): Promise<GeoPermission> {
-  try { return (await navigator.permissions.query({ name: 'geolocation' })).state } catch { return 'unknown' }
+  let q: GeoPermission = 'unknown'
+  try { q = (await navigator.permissions.query({ name: 'geolocation' })).state } catch { /* older iPhones */ }
+  return effectiveGeo(q, recalledGeo())
 }
 const isAndroid = () => /Android/.test(navigator.userAgent)
 
@@ -41,8 +43,13 @@ export function SetupGate({ steps, recheck }: { steps: Step[]; recheck: () => Pr
     setBusy(true)
     try { await fn() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false); await recheck() }
   }
-  const askLocation = () => new Promise<void>((ok, fail) => navigator.geolocation.getCurrentPosition(() => ok(),
-    e => fail(new Error(e.code === 1 ? 'Location was not allowed — see the steps below.' : 'Could not get your location, try again outside.')), { enableHighAccuracy: true, timeout: 20_000 }))
+  // Asking for one position is the only reliable test on iPhone; remember the outcome.
+  const askLocation = () => new Promise<void>((ok, fail) => navigator.geolocation.getCurrentPosition(
+    () => { rememberGeo('ok'); ok() },
+    e => {
+      if (e.code === 1) { rememberGeo('denied'); fail(new Error('Your phone blocked location — follow the steps on screen.')) }
+      else fail(new Error('Could not get your location yet — step outside or near a window and try again.'))
+    }, { enableHighAccuracy: true, timeout: 20_000, maximumAge: 60_000 }))
 
   const screens: Record<Step, { icon: typeof BellRing; title: string; body: ReactNode; action?: ReactNode }> = {
     'install-ios': {
@@ -90,11 +97,13 @@ export function SetupGate({ steps, recheck }: { steps: Step[]; recheck: () => Pr
         <ol className="mt-4 space-y-3 text-left">
           {isAndroid()
             ? <><Li n={1}>Tap the icon left of the address → <b>Permissions</b> → <b>Location</b> → <b>Allow</b>.</Li><Li n={2}>Make sure phone <b>Location</b> is on (swipe down from the top).</Li></>
-            : <><Li n={1}>Open <b>Settings</b> → <b>Privacy &amp; Security</b> → <b>Location Services</b> (on).</Li><Li n={2}>Find <b>Safari Websites</b> → <b>While Using the App</b>.</Li></>}
-          <Li n={3}>Come back here and tap <b>Check again</b>.</Li>
+            : <><Li n={1}>Open <b>Settings</b> → <b>Privacy &amp; Security</b> → <b>Location Services</b> and turn it <b>On</b>.</Li>
+                <Li n={2}>In that list tap <b>Safari Websites</b> → <b>While Using the App</b>, and turn on <b>Precise Location</b>.</Li>
+                <Li n={3}>Open <b>Settings</b> → <b>Apps</b> → <b>Safari</b> → <b>Location</b> → <b>Ask</b> or <b>Allow</b>.</Li></>}
+          <Li n={isAndroid() ? 3 : 4}>Close this app fully, open it again, and tap <b>Check again</b>.</Li>
         </ol>
       </>,
-      action: <Button size="lg" className="w-full" busy={busy} onClick={() => go(async () => {})}>Check again</Button>,
+      action: <Button size="lg" className="w-full" busy={busy} onClick={() => go(askLocation)}>Check again</Button>,
     },
   }
   const s = screens[step]

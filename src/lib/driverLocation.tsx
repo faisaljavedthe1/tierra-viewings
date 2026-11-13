@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from './api'
-import { isWorkingTime } from './setup'
+import { isWorkingTime, rememberGeo } from './setup'
 
 export interface DriverLoc { active: boolean; lastSent: number | null; error: string | null; screenAwake: boolean }
 const Ctx = createContext<DriverLoc>({ active: false, lastSent: null, error: null, screenAwake: false })
@@ -24,12 +24,16 @@ export function DriverLocationProvider({ enabled, children }: { enabled: boolean
     if (!('geolocation' in navigator)) { setState(s => ({ ...s, error: 'This phone cannot share location' })); return }
     setState(s => ({ ...s, active: true, error: null }))
     const id = navigator.geolocation.watchPosition(p => {
+      rememberGeo('ok')
       if (Date.now() - sentAt.current < 20_000) return
       sentAt.current = Date.now()
       api.shareLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy)
         .then(() => setState(s => ({ ...s, lastSent: Date.now(), error: null })))
         .catch(e => setState(s => ({ ...s, error: (e as Error).message })))
-    }, e => setState(s => ({ ...s, error: e.code === 1 ? 'Location permission is off' : 'Waiting for GPS…' })),
+    }, e => {
+      if (e.code === 1) rememberGeo('denied') // the set-up screen will show the fix-it steps
+      setState(s => ({ ...s, error: e.code === 1 ? 'Location permission is off — reopen the app to fix it' : 'Waiting for GPS…' }))
+    },
     { enableHighAccuracy: true, maximumAge: 15_000, timeout: 30_000 })
 
     // Keep the screen on while sharing (phone on its mount, charging).

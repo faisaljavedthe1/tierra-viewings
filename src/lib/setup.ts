@@ -21,3 +21,17 @@ export function isWorkingTime(now = new Date()) {
   const m = dubaiNowMins(now)
   return dow(dubaiToday(now)) !== 0 && m >= 9 * 60 && m < 18 * 60 + 30
 }
+
+/** What really happened the last time this phone asked for location ('ok' | 'denied'), kept on the phone. */
+export type GeoMemory = 'ok' | 'denied' | null
+const GEO_KEY = 'tv-geo'
+export function rememberGeo(v: Exclude<GeoMemory, null>) { try { localStorage.setItem(GEO_KEY, v) } catch { /* private mode */ } }
+export function recalledGeo(): GeoMemory { try { const v = localStorage.getItem(GEO_KEY); return v === 'ok' || v === 'denied' ? v : null } catch { return null } }
+
+/** iPhones often answer "prompt" even after silently refusing, so combine the browser's answer with experience. */
+export function effectiveGeo(query: GeoPermission, memory: GeoMemory): GeoPermission {
+  if (query === 'granted' || query === 'denied') return query
+  if (memory === 'denied') return 'denied'
+  if (memory === 'ok') return 'granted'
+  return query
+}
