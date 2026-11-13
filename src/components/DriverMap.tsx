@@ -30,7 +30,7 @@ export function DriverMap() {
   useEffect(() => {
     if (!map.current || !loc) { pin.current?.remove(); pin.current = null; return }
     const ll: L.LatLngExpression = [loc.lat, loc.lng]
-    if (!pin.current) pin.current = L.circleMarker(ll, { radius: 10, color: '#fff', weight: 3, fillColor: '#C07B1E', fillOpacity: 1 }).addTo(map.current)
+    if (!pin.current) pin.current = L.circleMarker(ll, { radius: 10, color: '#fff', weight: 3, fillColor: '#5A4B43', fillOpacity: 1 }).addTo(map.current)
     else pin.current.setLatLng(ll)
     map.current.setView(ll, Math.max(map.current.getZoom(), 14))
   }, [loc])
@@ -38,8 +38,8 @@ export function DriverMap() {
   return (
     <div>
       <div ref={el} className="h-[60vh] w-full overflow-hidden rounded-2xl" />
-      <p className="mt-2 text-sm text-fg2">
-        {loc === undefined ? 'Loading…' : loc ? <>🚗 Last update {ago(loc.updated_at)} · accuracy ±{loc.accuracy ?? '?'} m · <a className="text-gold underline" target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}>Open in Google Maps</a></>
+      <p className="mt-3 text-sm text-ink2">
+        {loc === undefined ? 'Loading…' : loc ? <>Last update {ago(loc.updated_at)} · accuracy ±{loc.accuracy ?? '?'} m · <a className="font-medium text-brand underline" target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}>Open in Google Maps</a></>
           : 'The driver is not sharing location right now.'}
       </p>
     </div>

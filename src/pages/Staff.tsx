@@ -5,7 +5,9 @@ import { DEPARTMENTS } from '../lib/constants'
 import type { Profile, Role } from '../lib/types'
 import { parseStaffList, welcomeMessage, type StaffRow } from '../lib/staffImport'
 import { waLink } from '../lib/whatsapp'
-import { Button, Chips, Field, Modal, useToast } from '../components/ui'
+import { Bell, BellOff, Plus, UsersRound } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Button, Chips, Field, Modal, PageHead, useToast } from '../components/ui'
 
 const ROLES: { v: Role; l: string }[] = [{ v: 'agent', l: 'Agent' }, { v: 'manager', l: 'Manager' }, { v: 'driver', l: 'Driver' }, { v: 'admin', l: 'Admin' }]
 const strongEnough = (p: string) => p.length >= 8
@@ -16,6 +18,11 @@ export function Staff() {
   const [tab, setTab] = useState<'staff' | 'errors'>('staff')
   const [adding, setAdding] = useState(false)
   const [bulk, setBulk] = useState(false)
+  const [devices, setDevices] = useState<Record<string, number>>({})
+  useEffect(() => {
+    void supabase.rpc('staff_push_status').then(({ data }) => setDevices(Object.fromEntries(((data ?? []) as { user_id: string; devices: number }[]).map(r => [r.user_id, r.devices]))))
+  }, [profiles])
+  const notifMissing = profiles.filter(p => p.active && !devices[p.id]).length
   const [resetFor, setResetFor] = useState<Profile | null>(null)
 
   async function save(p: Profile, patch: Partial<Profile>) {
@@ -26,28 +33,31 @@ export function Staff() {
   }
 
   return (
-    <div className="page-in space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold">Staff</h1>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => setBulk(true)}>Add many</Button>
-          <Button onClick={() => setAdding(true)}>＋ Add staff</Button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHead eyebrow="Admin" title="Staff" actions={<>
+        <Button variant="secondary" icon={UsersRound} onClick={() => setBulk(true)}>Add many</Button>
+        <Button icon={Plus} onClick={() => setAdding(true)}>Add staff</Button>
+      </>} />
+      {tab === 'staff' && notifMissing > 0 && <p className="rounded-xl bg-[var(--s-pending-bg)] px-3 py-2.5 text-sm text-[var(--s-pending)]"><b>{notifMissing}</b> active {notifMissing === 1 ? 'person has' : 'people have'} not set up notifications yet (they will be asked at their next sign-in).</p>}
       <Chips value={tab} onChange={setTab} options={[{ v: 'staff', l: `People (${profiles.length})` }, { v: 'errors', l: 'Error log' }]} />
       {tab === 'errors' ? <ErrorLog /> : (
         <div className="space-y-2">
           {profiles.map(p => (
             <div key={p.id} className={`card flex flex-wrap items-center gap-3 p-3 ${p.active ? '' : 'opacity-60'}`}>
+              <span title={devices[p.id] ? `Notifications on (${devices[p.id]} device${devices[p.id] > 1 ? 's' : ''})` : 'Notifications not set up'}
+                aria-label={devices[p.id] ? 'Notifications on' : 'Notifications not set up'}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${devices[p.id] ? 'bg-[var(--s-confirmed-bg)] text-[var(--s-confirmed)]' : 'bg-paper2 text-ink3'}`}>
+                {devices[p.id] ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+              </span>
               <div className="min-w-40 flex-1">
-                <div className="font-bold">{p.full_name}{p.id === me?.id && <span className="text-fg3"> (you)</span>}</div>
-                <div className="text-xs text-fg2">{[p.job_title, p.department].filter(Boolean).join(' · ') || '—'} · {p.phone ?? 'no phone'}</div>
+                <div className="font-semibold">{p.full_name}{p.id === me?.id && <span className="font-normal text-ink3"> (you)</span>}</div>
+                <div className="text-xs text-ink2">{[p.job_title, p.department].filter(Boolean).join(' · ') || '—'} · {p.phone ?? 'no phone'}</div>
               </div>
-              <select aria-label={`Role for ${p.full_name}`} className="input w-auto py-1.5" value={p.role} disabled={p.id === me?.id} onChange={e => save(p, { role: e.target.value as Role })}>
+              <select aria-label={`Role for ${p.full_name}`} className="input min-h-9 w-auto py-1.5 text-sm" value={p.role} disabled={p.id === me?.id} onChange={e => save(p, { role: e.target.value as Role })}>
                 {ROLES.map(r => <option key={r.v} value={r.v}>{r.l}</option>)}
               </select>
-              <Button size="sm" variant={p.active ? 'danger' : 'ok'} disabled={p.id === me?.id} onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</Button>
-              <Button size="sm" variant="ghost" onClick={() => setResetFor(p)}>Reset password</Button>
+              <Button size="sm" variant={p.active ? 'danger' : 'success'} disabled={p.id === me?.id} onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</Button>
+              <Button size="sm" variant="secondary" onClick={() => setResetFor(p)}>Reset password</Button>
             </div>
           ))}
         </div>
@@ -73,7 +83,7 @@ function AddStaff({ onClose, onDone }: { onClose: () => void; onDone: () => Prom
         <Field label="Department" full><select className="input" value={f.department} onChange={e => setF({ ...f, department: e.target.value })}>{DEPARTMENTS.map(d => <option key={d}>{d}</option>)}</select></Field>
         <Field label="Temporary password (8+ characters)" required full><input className="input font-mono" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></Field>
       </div>
-      <p className="mt-2 text-xs text-fg2">Send them the email and password privately. They should change it under Account after signing in.</p>
+      <p className="mt-2 text-xs text-ink2">Send them the email and password privately. They should change it under Account after signing in.</p>
       <Button className="mt-4 w-full" busy={busy} disabled={!f.full_name || !f.email || !strongEnough(f.password)} onClick={async () => {
         setBusy(true)
         try { await api.adminStaff({ action: 'create', ...f, phone: f.phone.length > 4 ? f.phone : '' }); await onDone(); toast(`${f.full_name} can now sign in`, 'ok'); onClose() }
@@ -101,14 +111,14 @@ function ErrorLog() {
   const { nameOf } = useData()
   const [rows, setRows] = useState<Awaited<ReturnType<typeof api.errors>> | null>(null)
   useEffect(() => { void api.errors().then(setRows).catch(() => setRows([])) }, [])
-  if (!rows) return <p className="text-fg2">Loading…</p>
-  if (!rows.length) return <p className="card p-4 text-sm text-fg2">No errors reported. 🎉</p>
+  if (!rows) return <p className="text-ink2">Loading…</p>
+  if (!rows.length) return <p className="card p-4 text-sm text-ink2">No errors reported.</p>
   return (
     <div className="space-y-2">
       {rows.map(r => (
         <details key={r.id} className="card p-3 text-sm">
           <summary className="cursor-pointer"><b>{new Date(r.at).toLocaleString('en-GB', { timeZone: 'Asia/Dubai' })}</b> · {nameOf(r.user_id)} · {r.message}</summary>
-          <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap text-fg2">{r.url}{'\n'}{r.agent}{'\n'}{r.stack}</pre>
+          <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap text-ink2">{r.url}{'\n'}{r.agent}{'\n'}{r.stack}</pre>
         </details>
       ))}
     </div>
@@ -141,7 +151,7 @@ function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promi
 
   if (results) return (
     <Modal title="Logins created" wide onClose={onClose}>
-      <p className="mb-3 text-sm text-fg2">Send each person their login. Temporary passwords are shown <b>only now</b> — they will be asked to choose their own at first sign-in.</p>
+      <p className="mb-3 text-sm text-ink2">Send each person their login. Temporary passwords are shown <b>only now</b> — they will be asked to choose their own at first sign-in.</p>
       <div className="space-y-2">
         {results.map(r => {
           const msg = r.password ? welcomeMessage(r.full_name, r.email, r.password, site) : ''
@@ -149,10 +159,10 @@ function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promi
           return (
             <div key={r.email} className="card flex flex-wrap items-center gap-2 p-3 text-sm">
               <div className="min-w-48 flex-1"><b>{r.full_name}</b> · {r.email}
-                {r.ok ? <div className="font-mono text-fg2">{r.password}</div> : <div className="text-red-600 dark:text-red-400">✕ {r.error}</div>}</div>
+                {r.ok ? <div className="font-mono text-ink2">{r.password}</div> : <div className="text-[var(--s-cancelled)]">{r.error}</div>}</div>
               {r.ok && <>
-                {wa && <a className="rounded-xl bg-emerald-600 px-3 py-1.5 font-semibold text-white" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
-                <Button size="sm" variant="ghost" onClick={() => copy(msg)}>Copy message</Button>
+                {wa && <a className="inline-flex h-9 items-center rounded-xl bg-[var(--s-confirmed)] px-3 text-[13.5px] font-medium text-white" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+                <Button size="sm" variant="secondary" onClick={() => copy(msg)}>Copy message</Button>
               </>}
             </div>
           )
@@ -164,14 +174,14 @@ function AddMany({ onClose, onDone }: { onClose: () => void; onDone: () => Promi
 
   return (
     <Modal title="Add many staff" wide onClose={onClose}>
-      <p className="mb-2 text-sm text-fg2">One person per line: <b>Name, email, phone, position, department</b> — paste straight from Excel or Google Sheets. Then choose each person's <b>app access</b> in the table: <i>Agent</i> books viewings, <i>Manager</i> also confirms and reschedules, <i>Driver</i> sees trips, <i>Admin</i> manages staff.</p>
+      <p className="mb-2 text-sm text-ink2">One person per line: <b>Name, email, phone, position, department</b> — paste straight from Excel or Google Sheets. Then choose each person's <b>app access</b> in the table: <i>Agent</i> books viewings, <i>Manager</i> also confirms and reschedules, <i>Driver</i> sees trips, <i>Admin</i> manages staff.</p>
       <textarea className="input min-h-48 font-mono text-[13px]" value={text} onChange={e => setText(e.target.value)} aria-label="Staff list"
         placeholder={'Shazia Larik, larik.srso@gmail.com, +971522647579, agent, Sales Department\nGagan Malla, gaganmalla23@gmail.com, +971505244024, driver'} />
-      {parsed.errors.length > 0 && <ul className="mt-2 space-y-0.5 text-sm text-red-600 dark:text-red-400">{parsed.errors.map(e => <li key={e}>⚠ {e}</li>)}</ul>}
+      {parsed.errors.length > 0 && <ul className="mt-2 space-y-0.5 text-sm text-[var(--s-cancelled)]">{parsed.errors.map(e => <li key={e}>{e}</li>)}</ul>}
       {parsed.rows.length > 0 && (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-fg3"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Position</th><th>Department</th><th>App access</th></tr></thead>
+            <thead className="text-left text-ink3"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Position</th><th>Department</th><th>App access</th></tr></thead>
             <tbody>{parsed.rows.map(r => (
               <tr key={r.email} className="border-t border-line">
                 <td className="py-1 font-medium">{r.full_name}</td><td>{r.email}</td><td>{r.phone}</td><td>{r.job_title}</td><td>{r.department}</td>

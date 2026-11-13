@@ -10,19 +10,19 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'favicon.svg', 'mark.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Tierra Viewings',
         short_name: 'Viewings',
         description: 'Driver and viewing scheduler for Tierra Properties',
-        theme_color: '#0A0C18',
-        background_color: '#0A0C18',
+        theme_color: '#F7F3EE',
+        background_color: '#F7F3EE',
         display: 'standalone',
         start_url: '/',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], importScripts: ['push-sw.js'] },

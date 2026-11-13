@@ -84,3 +84,28 @@ describe('pen-test fixes', () => {
     expect((await db.pg.query('select kind from public.push_log')).rows).toEqual([{ kind: 'r15' }])
   })
 })
+
+describe('who has notifications on (for chasing people who have not set up)', () => {
+  it('managers and the admin see device counts per person; agents cannot', async () => {
+    await db.addUser(U.mgr, 'Nabeeha Khial', 'manager')
+    await save(U.agent, sub(1)); await save(U.agent, sub(2))
+    const rows = await db.as<{ user_id: string; devices: number }>(U.mgr, 'select user_id, devices from public.staff_push_status() order by devices desc')
+    expect(rows.find(r => r.user_id === U.agent)?.devices).toBe(2)
+    expect(rows.find(r => r.user_id === U.agent2)?.devices).toBe(0)
+    await expect(db.as(U.agent, 'select * from public.staff_push_status()')).rejects.toThrow(/managers only/)
+  })
+})
+
+describe('driver location after hours', () => {
+  it('#1 the 5-minute tick wipes the driver location outside working hours (Mon–Sat 9:00–18:30 Dubai)', async () => {
+    await db.addUser(U.driver, 'Gagan Malla', 'driver')
+    await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 10)')
+    await db.setNow('2026-11-16 17:00'); await db.pg.query('select public.push_reminders_tick()')
+    expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(1)   // working hours: kept
+    await db.setNow('2026-11-16 18:35'); await db.pg.query('select public.push_reminders_tick()')
+    expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(0)   // after hours: gone
+    await db.as(U.driver, 'select public.update_driver_location(25.1, 55.2, 10)')
+    await db.setNow('2026-11-22 11:00'); await db.pg.query('select public.push_reminders_tick()')  // Sunday
+    expect((await db.pg.query('select * from public.driver_location')).rows).toHaveLength(0)
+  })
+})

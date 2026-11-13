@@ -7,9 +7,25 @@ import { FAKE_URL, FakeSupabase, PASSWORD, STAFF } from './fake-supabase'
 const NOW_UTC = new Date('2030-01-07T05:00:00Z')
 let fake: FakeSupabase
 
+/** Simulated push service + permission (real ones are Google / Apple / Mozilla servers). */
+async function stubPush(page: Page, opts: { granted: boolean; subscribed: boolean }) {
+  await page.addInitScript(o => {
+    const w = window as unknown as Record<string, unknown>
+    const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-device', toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, unsubscribe: async () => { w.__sub = null; return true } }
+    if (w.__sub === undefined) w.__sub = o.subscribed ? sub : null
+    if (w.__perm === undefined) w.__perm = o.granted ? 'granted' : 'default'
+    const reg = { pushManager: { getSubscription: async () => w.__sub ?? null, subscribe: async () => (w.__sub = sub) } }
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve(reg), register: async () => reg, getRegistration: async () => reg, getRegistrations: async () => [reg], addEventListener() {}, removeEventListener() {}, controller: null } })
+    if (!('PushManager' in window)) w.PushManager = function () {}
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => w.__perm as string })
+    Notification.requestPermission = async () => (w.__perm = 'granted') as NotificationPermission
+  }, opts)
+}
+
 test.beforeEach(async ({ page, context }) => {
   fake = await new FakeSupabase().start('2030-01-07 09:00')
   await fake.attach(page)
+  await stubPush(page, { granted: true, subscribed: true })
   await page.clock.install({ time: NOW_UTC })
   await context.grantPermissions(['geolocation'])
   await context.setGeolocation({ latitude: 25.0805, longitude: 55.1403 })
@@ -22,6 +38,12 @@ async function signIn(page: Page, who: keyof typeof STAFF) {
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+}
+async function signInTo(page: Page, who: keyof typeof STAFF) {
+  await page.goto('/')
+  await page.getByLabel('Email').fill(STAFF[who].email)
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Sign in' }).click()
 }
 async function seedBooking(who: keyof typeof STAFF, over: Record<string, unknown> = {}) {
   const [b] = await fake.db.as<{ id: string }>(STAFF[who].id, 'select * from public.book_viewing($1::jsonb)', [JSON.stringify({
@@ -43,8 +65,8 @@ test('agent: books from a free gap, fixes a mistake, edits, then cancels', async
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText([/Calendar/, /Mine/, /Account/])
 
   await page.getByRole('button', { name: /^Tue\s*8/ }).click()
-  await expect(page.getByText('Driver free 1:00 PM – 6:00 PM')).toBeVisible()
-  await page.getByText('Driver free 1:00 PM – 6:00 PM').click()
+  await expect(page.getByRole('button', { name: /Driver free 1:00 PM – 6:00 PM/ })).toBeVisible()
+  await page.getByRole('button', { name: /Driver free 1:00 PM – 6:00 PM/ }).click()
   const form = page.getByRole('dialog', { name: 'Book the driver' })
   await expect(form.getByLabel('Start time')).toHaveValue('13:00')
 
@@ -89,10 +111,11 @@ test('agent cannot reach manager or admin screens or act on others’ bookings',
   await signIn(page, 'shazia')
   for (const p of ['/manage', '/staff', '/trips']) {
     await page.goto(p)
-    await expect(page.getByRole('heading', { name: 'Driver calendar' })).toBeVisible()
+    await expect(page.getByText('Driver calendar')).toBeVisible()
   }
   await page.getByRole('button', { name: /^Tue\s*8/ }).click()
-  const card = page.getByRole('article').filter({ hasText: 'Bay Square 5' })
+  await page.getByRole('button', { name: /11:00 AM Business Bay, Bahaa Khizer/ }).click()
+  const card = page.getByRole('dialog', { name: 'Booking' }).getByRole('article')
   await expect(card).toBeVisible()
   await expect(card.getByText('Bahaa Khizer')).toBeVisible()      // who booked it
   await expect(card.getByText('Seeded viewing')).toHaveCount(0)    // but not the client details
@@ -153,8 +176,7 @@ test('driver: sees confirmed trips, shares location, completes a trip', async ({
   await expect(page.getByRole('article')).toHaveCount(1) // pending trip not shown
   await expect(page.getByText('Tierra office')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Start' }).click()
-  await expect(page.getByText('Sharing live location')).toBeVisible()
+  await expect(page.getByText('Sharing live location')).toBeVisible()          // automatic in working hours, no switch
   await expect.poll(async () => (await fake.db.pg.query('select * from public.driver_location')).rows.length).toBe(1)
 
   await page.getByRole('button', { name: /Completed/ }).click()
@@ -163,7 +185,9 @@ test('driver: sees confirmed trips, shares location, completes a trip', async ({
   await page.getByRole('button', { name: /Completed/ }).click()
   await expect(page.getByRole('article').getByText('Completed', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Stop' }).click()
+  await page.clock.setSystemTime(new Date('2030-01-07T14:31:00Z'))                // 6:31 PM Dubai — after hours
+  await page.clock.runFor(61_000)
+  await expect(page.getByText('Location off — outside working hours')).toBeVisible()
   await expect.poll(async () => (await fake.db.pg.query('select * from public.driver_location')).rows.length).toBe(0)
 })
 
@@ -183,7 +207,7 @@ test('admin: adds a staff member who can sign in, then deactivates them', async 
   await row.getByRole('button', { name: 'Deactivate' }).click()
   await expect(row.getByRole('button', { name: 'Activate' })).toBeVisible()
 
-  const p2 = await browser.newPage(); await fake.attach(p2); await p2.clock.install({ time: NOW_UTC })
+  const p2 = await browser.newPage(); await fake.attach(p2); await stubPush(p2, { granted: true, subscribed: true }); await p2.clock.install({ time: NOW_UTC })
   await p2.goto('/'); await p2.getByLabel('Email').fill('sinit@tierra.test'); await p2.getByLabel('Password').fill('Welcome-2030')
   await p2.getByRole('button', { name: 'Sign in' }).click()
   await expect(p2.getByRole('heading', { name: 'Account not active' })).toBeVisible()
@@ -228,14 +252,14 @@ test('admin: adds many staff at once; a new person must choose a password, then 
   await expect(row.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', /wa\.me\/971545264159\?text=.*Temporary%20password/)
   const temp = (await row.locator('.font-mono').textContent())!.trim()
 
-  const p2 = await browser.newPage(); await fake.attach(p2); await p2.clock.install({ time: NOW_UTC })
+  const p2 = await browser.newPage(); await fake.attach(p2); await stubPush(p2, { granted: true, subscribed: true }); await p2.clock.install({ time: NOW_UTC })
   await p2.goto('/'); await p2.getByLabel('Email').fill('oshani@tierra.test'); await p2.getByLabel('Password').fill(temp)
   await p2.getByRole('button', { name: 'Sign in' }).click()
   await expect(p2.getByRole('heading', { name: 'Welcome, Oshani' })).toBeVisible()
   await p2.getByLabel('New password (8+ characters)').fill('Oshani-own-pass-1')
   await p2.getByLabel('Repeat new password').fill('Oshani-own-pass-1')
   await p2.getByRole('button', { name: 'Save and continue' }).click()
-  await expect(p2.getByRole('heading', { name: 'Driver calendar' })).toBeVisible()
+  await expect(p2.getByText('Driver calendar')).toBeVisible()
   await p2.getByRole('link', { name: /Mine/ }).click()
   await p2.getByRole('tab', { name: 'Completed' }).click()
   await expect(p2.getByText('Cheque deposit')).toBeVisible()                       // her old Firebase booking is hers now
@@ -244,31 +268,34 @@ test('admin: adds many staff at once; a new person must choose a password, then 
   await p2.close()
 })
 
-test('phone notifications: nudge, turn on, test, turn off', async ({ page }) => {
+test('notifications are compulsory: blocked until turned on; signing out unregisters the phone', async ({ browser }) => {
+  const page = await browser.newPage(); await fake.attach(page); await stubPush(page, { granted: false, subscribed: false }); await page.clock.install({ time: NOW_UTC })
   await fake.db.pg.query(`insert into public.app_secrets (name, value) values ('vapid_public', 'BAbc') on conflict (name) do update set value = excluded.value`)
-  // Simulated push service (real ones are Google / Apple / Mozilla servers).
-  await page.addInitScript(() => {
-    const w = window as unknown as Record<string, unknown>
-    const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-device', toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, unsubscribe: async () => { w.__sub = null; return true } }
-    const reg = { pushManager: { getSubscription: async () => w.__sub ?? null, subscribe: async () => (w.__sub = sub) } }
-    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve(reg), register: async () => reg, getRegistration: async () => reg, getRegistrations: async () => [reg], addEventListener() {}, removeEventListener() {}, controller: null } })
-    if (!('PushManager' in window)) w.PushManager = function () {}
-    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => (w.__perm as string) || 'default' })
-    Notification.requestPermission = async () => (w.__perm = 'granted') as NotificationPermission
-  })
-  await signIn(page, 'shazia')
-  await expect(page.getByText('Get alerts on your phone')).toBeVisible()
-  await page.getByRole('button', { name: 'Later' }).click()
-  await expect(page.getByText('Get alerts on your phone')).toBeHidden()
-
-  await page.getByRole('link', { name: /Account/ }).click()
-  await page.getByRole('button', { name: 'Turn on' }).click()
-  await expect(page.getByText('✓ On for this device')).toBeVisible()
-  const subs = () => fake.db.pg.query<{ user_id: string; device: string }>('select user_id, device from public.push_subscriptions').then(r => r.rows)
-  expect(await subs()).toEqual([{ user_id: STAFF.shazia.id, device: expect.any(String) }])
+  await signInTo(page, 'shazia')
+  await expect(page.getByRole('heading', { name: 'Turn on notifications' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)            // no way into the app yet
+  await page.getByRole('button', { name: 'Turn on notifications' }).click()
+  await expect(page.getByText('Driver calendar')).toBeVisible()
+  const subs = () => fake.db.pg.query<{ user_id: string }>('select user_id from public.push_subscriptions').then(r => r.rows)
+  expect(await subs()).toEqual([{ user_id: STAFF.shazia.id }])
+  await page.getByRole('link', { name: /Account/ }).first().click()
+  await expect(page.getByText('On for this device')).toBeVisible()
   await page.getByRole('button', { name: 'Send a test' }).click()
   await expect(page.getByText(/Test sent/)).toBeVisible()
-  await page.getByRole('button', { name: 'Turn off' }).click()
-  await expect(page.getByRole('button', { name: 'Turn on' })).toBeVisible()
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(await subs()).toEqual([])
+  await page.close()
+})
+
+test('the driver must allow location before using the app', async ({ browser }) => {
+  const ctx = await browser.newContext()                                                   // no location permission yet
+  const page = await ctx.newPage(); await fake.attach(page); await stubPush(page, { granted: true, subscribed: true }); await page.clock.install({ time: NOW_UTC })
+  await signInTo(page, 'gagan')
+  await expect(page.getByRole('heading', { name: 'Allow your location' })).toBeVisible()
+  await expect(page.getByText(/never shared outside working hours/)).toBeVisible()
+  await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 25.08, longitude: 55.14 })
+  await page.getByRole('button', { name: 'Allow location' }).click()
+  await expect(page.getByRole('heading', { name: 'My trips' })).toBeVisible()
+  await ctx.close()
 })

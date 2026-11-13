@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 import { api } from './api'
 import type { Booking, Profile } from './types'
 import { messageFor } from './notify'
+import { disablePush } from './push'
 import { useToast } from '../components/ui'
 
 interface Data {
@@ -86,8 +87,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
 
   const signOut = useCallback(async () => {
-    if (meRef.current?.role === 'driver') await api.clearLocation().catch(() => {})
-    await supabase.auth.signOut()
+    // Best effort, but never let a slow network block signing out.
+    const within = (p: Promise<unknown>) => Promise.race([p.catch(() => {}), new Promise(r => setTimeout(r, 3000))])
+    if (meRef.current?.role === 'driver') await within(api.clearLocation())
+    await within(disablePush()) // a signed-out phone must not keep getting alerts
+    await within(supabase.auth.signOut({ scope: 'local' })) // this phone only; other devices stay signed in
+    // Guarantee the phone is signed out even if the call above was slow.
+    try { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k) } catch { /* private mode */ }
+    setSession(null); setMe(null); setBookings([]); setProfiles([])
   }, [])
 
   const value = useMemo(() => ({ session, me, loading, profiles, bookings, online, nameOf, agentOf, byId, upsert, refresh, signOut }),

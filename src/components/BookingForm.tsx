@@ -5,6 +5,7 @@ import { AREAS, DRIVER_COORDINATORS, DURATIONS } from '../lib/constants'
 import { dubaiToday, validateBooking, type FieldError } from '../lib/time'
 import type { Booking, BookingInput } from '../lib/types'
 import { newBookingMessage, waLink } from '../lib/whatsapp'
+import { AlertTriangle, Car, MapPin } from 'lucide-react'
 import { Button, Field, Modal, useToast } from './ui'
 
 const blank = (date: string, time = '10:00'): BookingInput => ({
@@ -54,13 +55,16 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
 
   return (
     <Modal title={editing ? 'Edit booking' : 'Book the driver'} onClose={onClose}>
-      <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-bg2 p-1" role="radiogroup" aria-label="Trip type">
-        {(['direct', 'pickup'] as const).map(t => (
-          <button key={t} role="radio" aria-checked={f.trip_type === t} onClick={() => set('trip_type', t)}
-            className={`rounded-lg py-2 text-sm font-semibold ${f.trip_type === t ? 'bg-surface shadow' : 'text-fg2'}`}>
-            {t === 'direct' ? '📍 Viewing location' : '🚗 Pick-up + destination'}
-          </button>
-        ))}
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-paper2 p-1" role="radiogroup" aria-label="Trip type">
+        {(['direct', 'pickup'] as const).map(t => {
+          const Icon = t === 'direct' ? MapPin : Car
+          return (
+            <button key={t} role="radio" aria-checked={f.trip_type === t} onClick={() => set('trip_type', t)}
+              className={`flex h-10 items-center justify-center gap-2 rounded-lg text-[14px] font-medium transition ${f.trip_type === t ? 'bg-surface text-ink shadow-sm' : 'text-ink2'}`}>
+              <Icon className="h-4 w-4" aria-hidden />{t === 'direct' ? 'To a location' : 'Pick-up + drop'}
+            </button>
+          )
+        })}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date" required error={err('date')}>
@@ -98,7 +102,7 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
           <PlaceInput value={f.location} invalid={!!err('location')} onChange={v => set('location', v)} placeholder="Building, tower or address" />
         </Field>
         <Field label="Purpose / client info" required full error={err('purpose')}>
-          <textarea className="input min-h-20" maxLength={1000} value={f.purpose} aria-invalid={!!err('purpose')} onChange={e => set('purpose', e.target.value)} placeholder="e.g. 2BR viewing with Mr. Ahmed" />
+          <textarea className="input min-h-24" maxLength={1000} value={f.purpose} aria-invalid={!!err('purpose')} onChange={e => set('purpose', e.target.value)} placeholder="e.g. 2BR viewing with Mr. Ahmed" />
         </Field>
         <Field label="Client reference">
           <input className="input" maxLength={120} value={f.client_ref} onChange={e => set('client_ref', e.target.value)} placeholder="Optional" />
@@ -107,10 +111,10 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
           <input className="input" maxLength={2000} value={f.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional" />
         </Field>
       </div>
-      {liveConflict && <p className="mt-3 rounded-xl bg-red-600/10 p-3 text-sm font-medium text-red-700 dark:text-red-400">⚠️ {liveConflict.message}</p>}
-      <div className="mt-5 flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={onClose}>Cancel</Button>
-        <Button className="flex-[2]" busy={busy} onClick={submit}>{editing ? 'Save changes' : 'Book viewing'}</Button>
+      {liveConflict && <p role="status" className="mt-4 flex gap-2 rounded-xl bg-[var(--s-cancelled-bg)] p-3 text-sm font-medium text-[var(--s-cancelled)]"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{liveConflict.message}</p>}
+      <div className="mt-6 grid grid-cols-3 gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button className="col-span-2" size="md" busy={busy} onClick={submit}>{editing ? 'Save changes' : 'Book viewing'}</Button>
       </div>
     </Modal>
   )
@@ -138,8 +142,8 @@ function PlaceInput({ value, onChange, placeholder, invalid }: { value: string; 
       <input className="input" maxLength={500} value={value} placeholder={placeholder} aria-invalid={invalid} autoComplete="off"
         onChange={e => type(e.target.value)} onBlur={() => setTimeout(() => setOpen(false), 150)} onFocus={() => hits.length && setOpen(true)} />
       {open && hits.length > 0 && (
-        <ul className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-xl border border-line2 bg-bg shadow-xl">
-          {hits.map(h => <li key={h}><button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-bg2" onMouseDown={() => { onChange(h); setOpen(false) }}>{h}</button></li>)}
+        <ul className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-xl border border-line2 bg-surface shadow-xl">
+          {hits.map(h => <li key={h}><button type="button" className="w-full px-3 py-2.5 text-left text-sm hover:bg-paper2" onMouseDown={() => { onChange(h); setOpen(false) }}>{h}</button></li>)}
         </ul>
       )}
     </div>

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../lib/api'
+import { useMemo, useState } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, MapPin, Moon, Sun } from 'lucide-react'
 import { useData } from '../lib/data'
+import { useDriverLocation } from '../lib/driverLocation'
 import { addDays, dubaiToday, fmtDate, isSunday, WE, WS } from '../lib/time'
 import { BookingCard } from '../components/BookingCard'
-import { Button, Empty, Stat, useToast } from '../components/ui'
+import { Empty, PageHead, Stat } from '../components/ui'
 
 export function Driver() {
   const { bookings } = useData()
@@ -12,51 +13,40 @@ export function Driver() {
     .sort((a, z) => a.start_time.localeCompare(z.start_time)), [bookings, day])
   const mins = trips.reduce((s, b) => s + b.duration_mins, 0)
   return (
-    <div className="page-in space-y-4">
-      <h1 className="text-2xl font-extrabold">My trips</h1>
-      <LocationShare />
-      <div className="card flex items-center justify-between p-2">
-        <button aria-label="Previous day" className="rounded-lg px-4 py-2 text-lg" onClick={() => setDay(addDays(day, -1))}>‹</button>
-        <button className="font-bold" onClick={() => setDay(dubaiToday())}>{fmtDate(day)}</button>
-        <button aria-label="Next day" className="rounded-lg px-4 py-2 text-lg" onClick={() => setDay(addDays(day, 1))}>›</button>
+    <div className="space-y-4">
+      <PageHead eyebrow="Driver" title="My trips" />
+      <LocationStatus />
+      <div className="card flex items-center justify-between p-1.5">
+        <button aria-label="Previous day" className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-paper2" onClick={() => setDay(addDays(day, -1))}><ChevronLeft className="h-5 w-5" /></button>
+        <button className="font-semibold" onClick={() => setDay(dubaiToday())}>{fmtDate(day)}</button>
+        <button aria-label="Next day" className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-paper2" onClick={() => setDay(addDays(day, 1))}><ChevronRight className="h-5 w-5" /></button>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Trips" value={trips.length} /><Stat label="Booked" value={`${(mins / 60).toFixed(1)}h`} /><Stat label="Free" value={`${(Math.max(0, WE - WS - mins) / 60).toFixed(1)}h`} />
       </div>
-      {isSunday(day) ? <Empty icon="🌙" title="Sunday — day off" />
+      {isSunday(day) ? <Empty icon={Moon} title="Sunday — day off" />
         : trips.length ? <div className="space-y-3">{trips.map(b => <BookingCard key={b.id} b={b} />)}</div>
-        : <Empty icon="✅" title="No confirmed trips" text="Trips appear here once a manager confirms them." />}
+        : <Empty icon={CheckCircle2} title="No confirmed trips" text="Trips appear here once a manager confirms them." />}
     </div>
   )
 }
 
-/** Shares GPS while switched on (at most every 20 s). Turning it off removes the location from the server. */
-function LocationShare() {
-  const toast = useToast()
-  const [on, setOn] = useState(() => { try { return localStorage.getItem('tv-share') === '1' } catch { return false } })
-  const [last, setLast] = useState<number | null>(null)
-  const watch = useRef<number | null>(null); const sentAt = useRef(0)
-
-  useEffect(() => {
-    try { localStorage.setItem('tv-share', on ? '1' : '0') } catch { /* private mode */ }
-    if (!on) return
-    if (!('geolocation' in navigator)) { toast('This phone cannot share location', 'err'); setOn(false); return }
-    watch.current = navigator.geolocation.watchPosition(p => {
-      if (Date.now() - sentAt.current < 20_000) return
-      sentAt.current = Date.now()
-      api.shareLocation(p.coords.latitude, p.coords.longitude, p.coords.accuracy).then(() => setLast(Date.now())).catch(e => toast((e as Error).message, 'err'))
-    }, e => { toast(e.code === 1 ? 'Location permission denied — allow it in your browser settings' : 'Could not get location', 'err'); if (e.code === 1) setOn(false) },
-    { enableHighAccuracy: true, maximumAge: 15_000, timeout: 30_000 })
-    return () => { if (watch.current !== null) navigator.geolocation.clearWatch(watch.current) }
-  }, [on, toast])
-
+/** Location is shared automatically during working hours — nothing for the driver to switch on or off. */
+function LocationStatus() {
+  const { active, lastSent, error, screenAwake } = useDriverLocation()
+  const ago = lastSent ? new Date(lastSent).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null
   return (
-    <div className={`card flex items-center justify-between gap-3 p-4 ${on ? 'ring-2 ring-emerald-500/40' : ''}`}>
-      <div>
-        <div className="font-bold">{on ? '🟢 Sharing live location' : '📍 Location sharing off'}</div>
-        <div className="text-xs text-fg2">{on ? (last ? `Last sent ${new Date(last).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for GPS…') : 'Managers can see you on the map while this is on.'}</div>
+    <div className={`card flex items-start gap-3 p-4 ${active && !error ? 'ring-1 ring-[var(--s-confirmed)]/40' : ''}`}>
+      <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${active ? 'bg-[var(--s-confirmed-bg)] text-[var(--s-confirmed)]' : 'bg-paper2 text-ink3'}`}>
+        {active ? <MapPin className="h-5 w-5" aria-hidden /> : <Moon className="h-5 w-5" aria-hidden />}
+      </span>
+      <div className="min-w-0">
+        <div className="font-semibold">{active ? 'Sharing live location' : 'Location off — outside working hours'}</div>
+        <div className="text-sm text-ink2">
+          {active ? (error ?? (ago ? `Last sent at ${ago}` : 'Waiting for GPS…')) : 'Shared automatically Mon–Sat, 9:00 AM – 6:30 PM.'}
+        </div>
+        {active && <div className="mt-1 flex items-center gap-1.5 text-xs text-ink3"><Sun className="h-3.5 w-3.5" aria-hidden />{screenAwake ? 'Screen kept on — keep the phone on its mount and charging.' : 'Keep this app open on screen while driving.'}</div>}
       </div>
-      <Button variant={on ? 'ghost' : 'gold'} onClick={() => { if (on) void api.clearLocation(); setOn(!on) }}>{on ? 'Stop' : 'Start'}</Button>
     </div>
   )
 }

@@ -40,6 +40,9 @@ with a valid login, an agent, a manager and the driver. Findings were listed bef
 | 21 | Backups would include push signing keys | Fixed (0012) — secrets table excluded from backups |
 | 22 | Notification tap could open an outside site | Fixed — in-app paths only |
 | 23 | Reminder log grows forever | Fixed (0012) — 30-day clean-up |
+| 25 | Driver location could linger after hours if the phone was locked | Fixed (0015) — server wipes it outside working hours |
+| 26 | Compulsory notifications enforced in the app only | Accepted — Staff screen shows who is not set up |
+| 27 | Sign-out could stall on a slow network | Fixed — always completes, unregisters this phone only |
 | 24 | push-send is reachable from the internet | Accepted — 256-bit secret generated in the DB, constant-time check; verified a wrong secret gets 401 |
 
 Supabase's security advisor still lists "signed-in users can execute SECURITY DEFINER functions":
