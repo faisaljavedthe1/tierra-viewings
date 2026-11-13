@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   backup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Install pg_dump 17

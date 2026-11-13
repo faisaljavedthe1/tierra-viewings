@@ -53,3 +53,11 @@ it('#5 every security-definer or helper function has a fixed search_path', async
     where n.nspname='public' and (p.proconfig is null or not exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%'))`)
   expect(rows).toEqual([])
 })
+
+it('the backup login can read everything but change nothing', async () => {
+  await db.pg.exec(`set role backup_reader`)
+  try {
+    expect((await db.pg.query('select count(*)::int n from public.profiles')).rows[0]).toEqual({ n: 5 })
+    await expect(db.pg.query(`update public.profiles set role='admin'`)).rejects.toThrow(/permission denied|read-only/)
+  } finally { await db.pg.exec('reset role') }
+})
