@@ -1,0 +1,26 @@
+# Runs every test on every push. A red cross on GitHub means something broke.
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx oxlint src
+      - name: Unit + database tests (RLS, booking rules, import)
+        run: npx vitest run
+      - run: npx playwright install --with-deps chromium
+      - name: Staff simulations (phone + desktop)
+        run: npx playwright test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-traces, path: test-results, retention-days: 7 }

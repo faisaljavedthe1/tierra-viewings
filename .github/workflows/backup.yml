@@ -1,0 +1,31 @@
+# Nightly database backup at 02:00 Dubai. Kept 90 days as a private download under
+# Actions → Backup → (run) → Artifacts. Also keeps the free Supabase project from pausing.
+# Needs repository secret SUPABASE_DB_URL (read-only "backup_reader" login, session pooler).
+name: Backup
+on:
+  schedule: [{ cron: '0 22 * * *' }]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install pg_dump 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: Dump
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          test -n "$DB" || { echo "SUPABASE_DB_URL secret is missing"; exit 1; }
+          f="tierra-viewings-$(date -u +%Y-%m-%d).sql.gz"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB" --schema=public --no-owner --no-privileges | gzip -9 > "$f"
+          rows=$(zcat "$f" | grep -c '^COPY public.bookings' || true)
+          test "$rows" -ge 1 || { echo "Backup looks empty"; exit 1; }
+          ls -lh "$f"
+      - uses: actions/upload-artifact@v4
+        with: { name: database-backup, path: '*.sql.gz', retention-days: 90 }

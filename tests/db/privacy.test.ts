@@ -89,3 +89,17 @@ describe('old Firebase bookings', () => {
       values (null, '2026-11-17', '10:00', 60, 'x', 'x', 'x')`)).rejects.toThrow(/agent/)
   })
 })
+
+describe('linking old bookings to new logins', () => {
+  it('when a staff member gets a login with the same name, their old bookings become theirs', async () => {
+    await db.pg.query(`insert into public.bookings (legacy_id, agent_name, date, start_time, duration_mins, area, location, purpose, status)
+      values ('-X1', 'Oshani Amaranath', '2026-10-20', '10:00', 60, 'Al Barsha', 'Al Barsha', 'Cheque deposit', 'completed'),
+             ('-X2', 'Someone Else', '2026-10-20', '12:00', 60, 'JVC', 'JVC', 'x', 'completed')`)
+    await db.addUser('00000000-0000-0000-0000-0000000000f2', 'oshani amaranath', 'agent')
+    const rows = await db.pg.query<{ legacy_id: string; agent_id: string | null }>('select legacy_id, agent_id from public.bookings order by legacy_id').then(r => r.rows)
+    expect(rows).toEqual([{ legacy_id: '-X1', agent_id: '00000000-0000-0000-0000-0000000000f2' }, { legacy_id: '-X2', agent_id: null }])
+    // and she now sees her own history in full
+    const [mine] = await db.as<{ purpose: string }>('00000000-0000-0000-0000-0000000000f2', `select purpose from public.calendar('2026-10-01') where agent_id is not null`)
+    expect(mine.purpose).toBe('Cheque deposit')
+  })
+})
