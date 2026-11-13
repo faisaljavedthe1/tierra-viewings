@@ -13,7 +13,8 @@ export interface Profile {
 
 export interface Booking {
   id: string
-  agent_id: string
+  agent_id: string | null
+  agent_name: string | null
   department: string | null
   date: string // YYYY-MM-DD
   start_time: string // HH:MM:SS
@@ -22,7 +23,8 @@ export interface Booking {
   trip_type: TripType
   pickup_location: string | null
   location: string
-  purpose: string
+  /** null when hidden: colleagues' bookings show time, place and agent only */
+  purpose: string | null
   notes: string | null
   client_ref: string | null
   status: Status

@@ -94,10 +94,10 @@ export class FakeSupabase {
       const args = keys.map((k, i) => `${k} => $${i + 1}`).join(', ')
       const params = keys.map(k => (body[k] !== null && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]))
       try {
-        const [ret] = await this.db.pg.query<{ t: string }>(`select prorettype::regtype::text t from pg_proc where proname=$1`, [fn]).then(r => r.rows)
+        const [ret] = await this.db.pg.query<{ t: string; set: boolean }>(`select prorettype::regtype::text t, proretset set from pg_proc where proname=$1`, [fn]).then(r => r.rows)
         if (ret?.t === 'void') { await this.db.as(uid, `select public.${fn}(${args})`, params); return send(204) }
         const rows = await this.db.as<{ j: unknown }>(uid, `select to_jsonb(r) j from public.${fn}(${args}) r`, params)
-        return send(200, rows[0]?.j ?? null)
+        return send(200, ret?.set ? rows.map(r => r.j) : rows[0]?.j ?? null)
       } catch (e) { return send(400, { message: (e as Error).message, code: 'P0001' }) }
     }
 

@@ -72,6 +72,7 @@ export function validateBooking(i: BookingInput, sameDay: Booking[], now = new D
   else if (isSunday(i.date)) e.push({ field: 'date', message: 'Sunday is a day off — no bookings' })
   else if (start < WS) e.push({ field: 'start_time', message: 'Viewings start at 9:30 AM — choose a later time' })
   else if (start >= WE) e.push({ field: 'start_time', message: 'No bookings starting at or after 6:00 PM' })
+  else if (end > WE) e.push({ field: 'duration_hours', message: 'Viewings must finish by 6:00 PM — start earlier or shorten the duration' })
   else if (i.date === today && start < dubaiNowMins(now) + 30) e.push({ field: 'start_time', message: 'Book at least 30 minutes ahead of the start time' })
   else {
     const c = sameDay.find(b => b.id !== excludeId && b.date === i.date && ACTIVE.includes(b.status) && start < endMins(b) && end > t2m(b.start_time))

@@ -94,6 +94,8 @@ test('agent cannot reach manager or admin screens or act on others’ bookings',
   await page.getByRole('button', { name: /^Tue\s*8/ }).click()
   const card = page.getByRole('article').filter({ hasText: 'Bay Square 5' })
   await expect(card).toBeVisible()
+  await expect(card.getByText('Bahaa Khizer')).toBeVisible()      // who booked it
+  await expect(card.getByText('Seeded viewing')).toHaveCount(0)    // but not the client details
   await expect(card.getByRole('button')).toHaveCount(0)
   // Even a hand-made request is refused by the database.
   const res = await page.evaluate(async url => {

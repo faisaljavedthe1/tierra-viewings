@@ -35,7 +35,7 @@ describe('access control (RLS)', () => {
 
   it('active staff see the shared calendar and the staff list', async () => {
     await book(U.agent)
-    expect(await db.as(U.agent2, 'select id from public.bookings')).toHaveLength(1)
+    expect(await db.as(U.agent2, `select id from public.calendar('2026-11-01')`)).toHaveLength(1)
     expect((await db.as(U.agent2, 'select id from public.profiles')).length).toBe(6)
   })
 

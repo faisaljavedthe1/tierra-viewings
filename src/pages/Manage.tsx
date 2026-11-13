@@ -11,7 +11,7 @@ import { Button, Chips, Empty, Modal, Stat, STATUS_LABEL, useToast } from '../co
 type F = 'pending' | 'upcoming' | 'today' | 'all' | 'cancelled'
 
 export function Manage() {
-  const { bookings, nameOf } = useData()
+  const { bookings, nameOf, agentOf } = useData()
   const toast = useToast()
   const today = dubaiToday()
   const [f, setF] = useState<F>('pending')
@@ -32,9 +32,9 @@ export function Manage() {
       if (f === 'upcoming' && !(b.date >= today && b.status !== 'cancelled' && b.status !== 'completed')) return false
       if (f === 'today' && b.date !== today) return false
       if (f === 'cancelled' && b.status !== 'cancelled') return false
-      return !s || [b.area, b.location, b.purpose, b.client_ref, nameOf(b.agent_id)].some(x => x?.toLowerCase().includes(s))
+      return !s || [b.area, b.location, b.purpose, b.client_ref, agentOf(b)].some(x => x?.toLowerCase().includes(s))
     }).sort((a, z) => (f === 'all' || f === 'cancelled' ? -1 : 1) * (a.date.localeCompare(z.date) || a.start_time.localeCompare(z.start_time)))
-  }, [bookings, f, q, today, nameOf])
+  }, [bookings, f, q, today, agentOf])
 
   async function exportAll() {
     setBusy(true)
@@ -44,7 +44,7 @@ export function Manage() {
       downloadCsv(`tierra-viewings-${today}.csv`, [
         ['Date', 'Start', 'End', 'Hours', 'Area', 'Trip type', 'Pick-up', 'Location / destination', 'Purpose', 'Notes', 'Agent', 'Department', 'Status', 'Client ref', 'Cancel reason', 'Booked at', 'Confirmed by', 'Confirmed at'],
         ...all.map(b => [b.date, fmtTime(b.start_time), fmtMins(endMins(b)), b.duration_mins / 60, b.area, b.trip_type, b.pickup_location, b.location, b.purpose, b.notes,
-          nameOf(b.agent_id), b.department, STATUS_LABEL[b.status], b.client_ref, b.cancel_reason, ts(b.created_at), b.confirmed_by ? nameOf(b.confirmed_by) : '', ts(b.confirmed_at)]),
+          agentOf(b), b.department, STATUS_LABEL[b.status], b.client_ref, b.cancel_reason, ts(b.created_at), b.confirmed_by ? nameOf(b.confirmed_by) : '', ts(b.confirmed_at)]),
       ])
     } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
   }

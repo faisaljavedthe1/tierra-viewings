@@ -13,7 +13,7 @@ export function show(title: string, body: string) {
 }
 
 /** Which realtime change deserves a message for this user, and what it says. */
-export function messageFor(me: Profile, before: Booking | undefined, after: Booking, nameOf: (id: string) => string): string | null {
+export function messageFor(me: Profile, before: Booking | undefined, after: Booking, nameOf: (id: string | null) => string): string | null {
   const when = `${fmtDate(after.date)} at ${fmtTime(after.start_time)}`
   const mine = after.agent_id === me.id
   if (!before) return isManagerRole(me.role) && !mine ? `📋 New booking by ${nameOf(after.agent_id)} — ${when}, ${after.area}` : null

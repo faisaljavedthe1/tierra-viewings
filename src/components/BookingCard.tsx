@@ -8,7 +8,7 @@ import { BookingForm } from './BookingForm'
 import { Button, Field, Modal, StatusPill, useToast } from './ui'
 
 export function BookingCard({ b, showDate }: { b: Booking; showDate?: boolean }) {
-  const { me, nameOf, byId, upsert } = useData()
+  const { me, nameOf, agentOf, byId, upsert } = useData()
   const toast = useToast()
   const [dlg, setDlg] = useState<'cancel' | 'move' | 'edit' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -41,11 +41,11 @@ export function BookingCard({ b, showDate }: { b: Booking; showDate?: boolean })
       <dl className="mt-2 space-y-0.5 text-sm text-fg2">
         {b.trip_type === 'pickup' && <div>🚗 <b className="text-fg">From</b> {b.pickup_location}</div>}
         <div>📍 {b.trip_type === 'pickup' && <b className="text-fg">To </b>}{b.location}</div>
-        <div>📝 {b.purpose}</div>
+        {b.purpose != null && <div>📝 {b.purpose}</div>}
         {b.notes && <div>💬 {b.notes}</div>}
-        <div>👤 {nameOf(b.agent_id)}{b.client_ref && <> · Ref {b.client_ref}</>}</div>
+        <div>👤 {agentOf(b)}{b.client_ref && <> · Ref {b.client_ref}</>}</div>
         {b.status === 'rescheduled' && b.original_date && <div className="text-violet-600 dark:text-violet-400">↪ Moved from {fmtDate(b.original_date)} {fmtTime(b.original_start!)}</div>}
-        {b.status === 'cancelled' && <div className="text-red-600 dark:text-red-400">Cancelled by {nameOf(b.cancelled_by)}{b.cancel_reason && ` — ${b.cancel_reason}`}</div>}
+        {b.status === 'cancelled' && <div className="text-red-600 dark:text-red-400">Cancelled{b.cancelled_by && <> by {nameOf(b.cancelled_by)}</>}{b.cancel_reason && ` — ${b.cancel_reason}`}</div>}
         {b.confirmed_by && b.status !== 'cancelled' && <div>✔ Confirmed by {nameOf(b.confirmed_by)}</div>}
       </dl>
       {open && (mgr || mine || me?.role === 'driver') && (

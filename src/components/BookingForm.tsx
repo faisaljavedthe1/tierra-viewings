@@ -13,7 +13,7 @@ const blank = (date: string, time = '10:00'): BookingInput => ({
 })
 const fromBooking = (b: Booking): BookingInput => ({
   date: b.date, start_time: b.start_time.slice(0, 5), duration_hours: b.duration_mins / 60, area: b.area, trip_type: b.trip_type,
-  pickup_location: b.pickup_location ?? '', location: b.location, purpose: b.purpose, notes: b.notes ?? '', client_ref: b.client_ref ?? '',
+  pickup_location: b.pickup_location ?? '', location: b.location, purpose: b.purpose ?? '', notes: b.notes ?? '', client_ref: b.client_ref ?? '',
 })
 
 export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { date: string; initialTime?: string; editing?: Booking; onClose: () => void; onSaved: (b: Booking) => void }) {
@@ -67,7 +67,7 @@ export function BookingForm({ date, initialTime, editing, onClose, onSaved }: { 
           <input type="date" className="input" min={dubaiToday()} value={f.date} aria-invalid={!!err('date')} onChange={e => set('date', e.target.value)} />
         </Field>
         <Field label="Start time" required error={err('start_time')}>
-          <input type="time" className="input" min="09:30" max="17:59" step={900} value={f.start_time} aria-invalid={!!err('start_time')} onChange={e => set('start_time', e.target.value)} />
+          <input type="time" className="input" min="09:30" max="17:30" step={900} value={f.start_time} aria-invalid={!!err('start_time')} onChange={e => set('start_time', e.target.value)} />
         </Field>
         <Field label="Duration" required error={err('duration_hours')}>
           {customDur

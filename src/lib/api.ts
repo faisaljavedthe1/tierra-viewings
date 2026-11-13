@@ -23,7 +23,8 @@ export const api = {
     rpc<void>('admin_update_staff', { uid: id, new_role: role, new_active: active, new_department: department, new_phone: phone }),
 
   async recentBookings(days = 120): Promise<Booking[]> {
-    const { data, error } = await supabase.from('bookings').select('*').gte('date', addDays(dubaiToday(), -days)).order('date').order('start_time')
+    // Colleagues' bookings arrive with client details removed (see calendar() in migration 0005).
+    const { data, error } = await supabase.rpc('calendar', { p_from: addDays(dubaiToday(), -days) })
     if (error) throw new Error(friendly(error))
     return data as Booking[]
   },

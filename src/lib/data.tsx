@@ -15,6 +15,7 @@ interface Data {
   bookings: Booking[]
   online: boolean
   nameOf: (id: string | null) => string
+  agentOf: (b: Booking) => string
   byId: (id: string | null) => Profile | undefined
   upsert: (b: Booking) => void
   refresh: () => Promise<void>
@@ -56,6 +57,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (uid) { setLoading(true); void refresh() } }, [uid, refresh])
 
   const nameOf = useCallback((id: string | null) => pRef.current.find(p => p.id === id)?.full_name ?? '—', [])
+  const agentOf = useCallback((b: Booking) => (b.agent_id ? nameOf(b.agent_id) : b.agent_name ?? '—'), [nameOf])
   const byId = useCallback((id: string | null) => pRef.current.find(p => p.id === id), [])
   const upsert = useCallback((b: Booking) => setBookings(list => {
     const i = list.findIndex(x => x.id === b.id)
@@ -76,9 +78,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })
       .subscribe()
     const back = () => { if (document.visibilityState === 'visible') void refresh() }
+    // Live updates only carry rows a person may see in full, so also refresh every minute while open.
+    const poll = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh() }, 60_000)
     const on = () => { setOnline(true); void refresh() }, off = () => setOnline(false)
     document.addEventListener('visibilitychange', back); addEventListener('online', on); addEventListener('offline', off)
-    return () => { void supabase.removeChannel(ch); document.removeEventListener('visibilitychange', back); removeEventListener('online', on); removeEventListener('offline', off) }
+    return () => { clearInterval(poll); void supabase.removeChannel(ch); document.removeEventListener('visibilitychange', back); removeEventListener('online', on); removeEventListener('offline', off) }
   }, [me?.active, refresh, upsert, nameOf, toast])
 
   useEffect(() => { if (me?.active) scheduleReminders(me, bookings, dubaiToday(), dubaiNowMins()) }, [me, bookings])
@@ -88,7 +92,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
   }, [])
 
-  const value = useMemo(() => ({ session, me, loading, profiles, bookings, online, nameOf, byId, upsert, refresh, signOut }),
-    [session, me, loading, profiles, bookings, online, nameOf, byId, upsert, refresh, signOut])
+  const value = useMemo(() => ({ session, me, loading, profiles, bookings, online, nameOf, agentOf, byId, upsert, refresh, signOut }),
+    [session, me, loading, profiles, bookings, online, nameOf, agentOf, byId, upsert, refresh, signOut])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
