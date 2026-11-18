@@ -58,3 +58,5 @@ intentional — these functions are the only way to change data and each checks 
 | 32 | Typed locations are sent to Photon (komoot) and Nominatim (OSM Foundation) | Accepted — Location fields only, never purpose/client details |
 | 33 | "Continue for today" is a phone-side gate | Accepted — asks again next day; Staff page shows who has no bell |
 | 34 | Free OSM search services have fair-use limits | Accepted — debounced; our own Dubai list works without them |
+| 35 | Sign-out on a slow network could take ~9 s, and if the server call stalled the phone stayed subscribed to alerts | Fixed — phone unsubscribes locally first, clean-up runs in parallel, capped at ~5 s |
+| 36 | New home-screen icon is ignored by phones that cache the old one | Accepted — icons renamed (v2) so Android refreshes; iPhone users re-add to Home Screen once |

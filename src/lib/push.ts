@@ -51,7 +51,12 @@ async function subscribe(reg: ServiceWorkerRegistration, key: Uint8Array) {
 export async function disablePush() {
   const reg = await registration().catch(() => null)
   const sub = await reg?.pushManager.getSubscription()
-  if (sub) { await supabase.rpc('delete_push_subscription', { p_endpoint: sub.endpoint }); await sub.unsubscribe() }
+  if (!sub) return
+  // Unsubscribe on the phone first: even if the network is down, this phone stops getting alerts at once
+  // (the server then drops the dead address on its next send). Then tell the server, best effort.
+  const endpoint = sub.endpoint
+  await sub.unsubscribe().catch(() => false)
+  await supabase.rpc('delete_push_subscription', { p_endpoint: endpoint }).then(() => {}, () => {})
 }
 
 export async function testPush() {

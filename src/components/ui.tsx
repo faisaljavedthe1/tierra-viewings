@@ -3,15 +3,16 @@ import { CheckCircle2, Info, Loader2, X, XCircle, type LucideIcon } from 'lucide
 import type { Status } from '../lib/types'
 
 /* ---------- brand ---------- */
-const MARK = 'M0 0h51v5H0zM0 5h5v5H0zM0 10h28v5H0zM23 15h5v22h-5zM32 10h19v5H32zM46 15h5v4h-5zM32 19h19v5H32zM32 24h5v18h-5zM14 42h23v5H14zM14 24h5v18h-5zM0 19h19v5H0z'
+// Exact Tierra T, measured from the original 1536 px artwork.
+const MARK = 'M0 0h204v20h-204zM0 20h17v17h-17zM0 37h112v18h-112zM129 37h75v18h-75zM93 55h19v90h-19zM185 55h19v16h-19zM0 71h77v19h-77zM129 71h75v19h-75zM58 90h19v93h-19zM129 90h19v93h-19zM58 164h90v19h-90z'
 export const Mark = ({ className = 'h-7 w-auto', title = 'Tierra Properties' }: { className?: string; title?: string }) => (
-  <svg viewBox="0 0 51 47" className={`fill-brand ${className}`} role="img" aria-label={title}><path d={MARK} /></svg>
+  <svg viewBox="0 0 204 183" className={`fill-brand ${className}`} role="img" aria-label={title}><path d={MARK} /></svg>
 )
-/** "tierra PROPERTIES" lettering from the official logo (brown on light, cream on dark). */
+/** Official "tierra PROPERTIES" logo as sharp vector (traced from the original), brown on light, cream on dark. */
 export const Wordmark = ({ className = 'h-10 w-auto' }: { className?: string }) => (
   <>
-    <img src="/wordmark-brown@2x.png" alt="Tierra Properties" className={`${className} dark:hidden`} />
-    <img src="/wordmark-cream@2x.png" alt="Tierra Properties" className={`${className} hidden dark:block`} />
+    <img src="/wordmark-brown.svg" alt="Tierra Properties" className={`${className} dark:hidden`} />
+    <img src="/wordmark-cream.svg" alt="Tierra Properties" className={`${className} hidden dark:block`} />
   </>
 )
 

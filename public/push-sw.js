@@ -3,7 +3,7 @@ self.addEventListener('push', event => {
   let d = {}
   try { d = event.data ? event.data.json() : {} } catch { d = { title: 'Tierra Viewings', body: event.data && event.data.text() } }
   event.waitUntil(self.registration.showNotification(d.title || 'Tierra Viewings', {
-    body: d.body || '', tag: d.tag, renotify: Boolean(d.tag), icon: '/icon-192.png', badge: '/icon-192.png',
+    body: d.body || '', tag: d.tag, renotify: Boolean(d.tag), icon: '/icon-v2-192.png', badge: '/icon-v2-192.png',
     data: { url: typeof d.url === 'string' && /^\/(?!\/)[\w\-/]*$/.test(d.url) ? d.url : '/' }, // in-app paths only
   }))
 })

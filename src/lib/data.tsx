@@ -88,10 +88,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     // Best effort, but never let a slow network block signing out.
-    const within = (p: Promise<unknown>) => Promise.race([p.catch(() => {}), new Promise(r => setTimeout(r, 3000))])
-    if (meRef.current?.role === 'driver') await within(api.clearLocation())
-    await within(disablePush()) // a signed-out phone must not keep getting alerts
-    await within(supabase.auth.signOut({ scope: 'local' })) // this phone only; other devices stay signed in
+    const within = (p: Promise<unknown>, ms = 3000) => Promise.race([p.catch(() => {}), new Promise(r => setTimeout(r, ms))])
+    // Clean-up runs side by side with one short time limit, so signing out never takes more than ~5 s.
+    await within(Promise.all([
+      meRef.current?.role === 'driver' ? api.clearLocation().catch(() => {}) : null,
+      disablePush().catch(() => {}), // a signed-out phone must not keep getting alerts
+    ]))
+    await within(supabase.auth.signOut({ scope: 'local' }), 2000) // this phone only; other devices stay signed in
     // Guarantee the phone is signed out even if the call above was slow.
     try { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k) } catch { /* private mode */ }
     setSession(null); setMe(null); setBookings([]); setProfiles([])

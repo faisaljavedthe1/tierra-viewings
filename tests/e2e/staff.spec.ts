@@ -289,7 +289,7 @@ test('notifications are compulsory: blocked until turned on; signing out unregis
   await page.getByRole('button', { name: 'Send a test' }).click()
   await expect(page.getByText(/Test sent/)).toBeVisible()
   await page.getByRole('button', { name: 'Sign out' }).click()
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible({ timeout: 10_000 }) // sign-out waits up to 3 s per clean-up step on a slow network
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible({ timeout: 7_000 }) // sign-out is capped at ~5 s even on a slow network
   expect(await subs()).toEqual([])
   await page.close()
 })
